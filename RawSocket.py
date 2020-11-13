@@ -64,7 +64,7 @@ class RawSocket:
             sys.exit()
 
         try:
-            self.rcv_socket = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_RAW)
+            self.rcv_socket = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_TCP)
         except socket.error as msg:
             print('Receive socket could not be created. Error Code : ' + str(msg[0]) + ' Message ' + msg[1])
             sys.exit()
@@ -149,6 +149,7 @@ class RawSocket:
         # TODO: retry and timeout
         recv_packet = self.rcv_socket.recvfrom(65565)
         print('received SYN-ACK at' + str(time.clock()))
+        print(recv_packet)
 
 
 
