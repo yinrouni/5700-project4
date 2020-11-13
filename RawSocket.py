@@ -1,5 +1,10 @@
+import math
+import random
 import socket, sys
+import time
 from struct import *
+
+RESEND_THRESHOLD = 60
 
 
 # TCP flags
@@ -48,12 +53,20 @@ class RawSocket:
     def __init__(self):
         self.source_ip = ''
         self.dest_ip = ''
+        self.source_port = ''
+        self.dest_port = ''
 
         # create a raw socket
         try:
             self.socket = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_RAW)
         except socket.error as msg:
-            print('Socket could not be created. Error Code : ' + str(msg[0]) + ' Message ' + msg[1])
+            print('Send socket could not be created. Error Code : ' + str(msg[0]) + ' Message ' + msg[1])
+            sys.exit()
+
+        try:
+            self.rcv_socket = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_RAW)
+        except socket.error as msg:
+            print('Receive socket could not be created. Error Code : ' + str(msg[0]) + ' Message ' + msg[1])
             sys.exit()
 
     # IP header
@@ -78,10 +91,10 @@ class RawSocket:
         return ip_header
 
     # TCP header
-    def getTCPHeader(self, source_port, dest_port, tcp_seq, tcp_ack_seq, user_data, flag):
+    def getTCPHeader(self, tcp_seq, tcp_ack_seq, user_data, flag):
         # tcp header fields
-        tcp_source = source_port  # source port
-        tcp_dest = dest_port  # destination port
+        tcp_source = self.source_port  # source port
+        tcp_dest = self.dest_port  # destination port
 
         tcp_doff = 5  # 4 bit field, size of tcp header, 5 * 4 = 20 bytes
 
@@ -119,5 +132,31 @@ class RawSocket:
         return tcp_check
 
     # handshake
+    def handshake(self):
+        seq_number = random.randint(0, math.pow(2, 31))
+        seq_ack_num = 0
+
+        # send first SYN
+        ip_header = self.getIPHeader()
+        tcp_header = self.getTCPHeader(seq_number, seq_ack_num, '', 'SYN')
+        packet = ip_header + tcp_header
+
+        start = time.clock()
+        self.socket.sendto(packet, (self.dest_ip, self.dest_port))
+        print('sent SYN at ' + str(start))
+
+        # receive SYN_ACK
+        # TODO: retry and timeout
+        recv_packet = self.rcv_socket.recvfrom(65565)
+        print('received SYN-ACK at' + str(time.clock()))
+
+
+
+
+
+
+
+
+    #     send ACK
 
     # connect
