@@ -1,6 +1,7 @@
 import math
 import random
-import socket, sys
+import socket
+import sys
 import time
 from struct import *
 
@@ -46,6 +47,21 @@ def checksum(msg):
     s = ~s & 0xffff
 
     return s
+
+def setFileName(url):
+    filename = ''
+    slash_index = url.rfind('/')
+    if slash_index == 6 or slash_index == len(url) - 1:
+        filename = "index.html"
+    else:
+        filename = url[slash_index+1:]
+
+    return filename
+
+
+
+
+
 
 
 class RawSocket:
@@ -150,6 +166,8 @@ class RawSocket:
         recv_packet = self.rcv_socket.recvfrom(65565)
         print('received SYN-ACK at' + str(time.clock()))
         print(recv_packet)
+
+
 
 
 
