@@ -178,16 +178,19 @@ class RawSocket:
 
         version = ip_headers['ver_ihl'] >> 4
         if version != 4:
+            print('not ipv4')
             raise ValueError("not IPv4")
         ihl = ip_headers['ver_ihl'] & 0x0F
 
         # check that this is the destination
         print(ip_headers['dest'], self.dest_ip)
         if ip_headers['dest'] != self.dest_ip:
+            print("invalid destination IP address")
             raise ValueError("invalid destination IP address")
 
         # check that is tcp packet
         if ip_headers['proto'] != 0x06:
+            print('not tcp packet')
             raise ValueError("Not TCP packet")
 
         # get the data from the ip packet
