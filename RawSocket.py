@@ -211,7 +211,7 @@ class RawSocket:
 
         # send first SYN
         self.sendPacket(self.seq_number, self.seq_ack_num, '', 'SYN')
-        start = time.clock()
+        start = time.process_time()()
         print('sent SYN at ' + str(start))
 
         # receive SYN_ACK
@@ -220,7 +220,7 @@ class RawSocket:
             print('enter loop')
             recv_packet = self.rcv_socket.recv(65565)
 
-            print('received SYN-ACK at' + str(time.clock()))
+            print('received SYN-ACK at' + str(time.process_time()()))
             print(recv_packet)
 
             try:
