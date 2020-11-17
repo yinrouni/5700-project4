@@ -193,8 +193,10 @@ def ipunwrap(ip_packet):
     ihl = ip_headers['ver_ihl'] & 0x0F
 
     # check that this is the destination
+    print("ip_header dest: " +str(ip_headers['dest']))
+    print(hostIP_hex)
     if ip_headers['dest'] != hostIP_hex:
-        print(ip_headers['dest'])
+        print('ip header dest: '+ip_headers['dest'])
         raise ValueError("invalid destination IP address")
 
     # check that is tcp packet

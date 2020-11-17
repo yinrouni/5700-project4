@@ -4,6 +4,7 @@ import socket
 import sys
 import time
 from struct import *
+import subprocess
 
 RESEND_THRESHOLD = 60
 
@@ -183,8 +184,8 @@ class RawSocket:
         ihl = ip_headers['ver_ihl'] & 0x0F
 
         # check that this is the destination
-        print(ip_headers['dest'], self.dest_ip)
-        if ip_headers['dest'] != self.dest_ip:
+        if ip_headers['dest'] != socket.inet_aton(self.source_ip):
+            print(ip_headers['dest'], self.source_ip)
             print("invalid destination IP address")
             raise ValueError("invalid destination IP address")
 
@@ -259,7 +260,7 @@ class RawSocket:
         self.dest_ip = socket.gethostbyname(hostname)
 
         # API to get IP of source machine
-        self.source_ip = socket.gethostbyname(socket.gethostname())
+        self.source_ip = subprocess.getoutput("hostname -I")
 
         self.handshake()
 

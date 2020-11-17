@@ -31,12 +31,10 @@ def generaterHeader(method, path, cookie, data):
         return ("%s\r\n%s" % (prefix, data)).encode()
 
     return ("%s\r\n" % prefix).encode()
-
-
+print(socket.getfqdn())
+print(socket.gethostbyname_ex(socket.gethostname())[-1])
 client_socket = RawSocket.RawSocket()
 server_address = (socket.gethostbyname(HOST), PORT)
-print(server_address)
-print(socket.gethostbyname(socket.gethostname()))
 client_socket.connect(server_address)
 print('connect')
 
