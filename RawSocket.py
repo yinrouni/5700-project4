@@ -26,6 +26,9 @@ def getTCPFlags(flag):
     elif flag == 'PSH-ACK':
         tcp_psh = 1
         tcp_ack = 1
+    elif flag == 'FIN-ACK':
+        tcp_ack = 1
+        tcp_fin = 1
 
     tcp_flags = tcp_fin + (tcp_syn << 1) + (tcp_rst << 2) + (tcp_psh << 3) + (tcp_ack << 4) + (tcp_urg << 5)
     return tcp_flags
@@ -37,7 +40,7 @@ def checksum(msg):
 
     # loop taking 2 characters at a time
     for i in range(0, len(msg), 2):
-        w = ord(msg[i]) + (ord(msg[i + 1]) << 8)
+        w = msg[i] + (msg[i + 1] << 8)
         s = s + w
 
     s = (s >> 16) + (s & 0xffff)
@@ -158,7 +161,8 @@ class RawSocket:
         tcp_length = len(tcp_header) + len(user_data)
 
         psh = pack('!4s4sBBH', source_address, dest_address, placeholder, protocol, tcp_length)
-        psh = psh + tcp_header + user_data
+
+        psh = psh + tcp_header + user_data.encode()
 
         tcp_check = checksum(psh)
 
@@ -198,7 +202,8 @@ class RawSocket:
     def sendPacket(self, seq_number, seq_ack_num, user_data, flags):
         ip_header = self.getIPHeader()
         tcp_header = self.getTCPHeader(seq_number, seq_ack_num, user_data, flags)
-        packet = ip_header + tcp_header
+
+        packet = ip_header + tcp_header + user_data.encode()
         self.socket.sendto(packet, (self.dest_ip, self.dest_port))
 
     # handshake
@@ -212,7 +217,8 @@ class RawSocket:
         # receive SYN_ACK
         # TODO: retry and timeout
         while True:
-            recv_packet = self.rcv_socket.recvfrom(65565)
+            print('enter loop')
+            recv_packet = self.rcv_socket.recv(65565)
 
             print('received SYN-ACK at' + str(time.clock()))
             print(recv_packet)
@@ -262,9 +268,77 @@ class RawSocket:
         self.seq_number += len(request)
 
     # get Response
+    def recv(self):
+        f = open('demo.txt', 'a')
+
+        done = False
+        while not done:
+            while True:
+                recv_packet = self.rcv_socket.recvfrom(65565)
+
+                try:
+                    ip_header, ip_data = self.unpackIP(recv_packet)
+                except ValueError:
+                    continue
+
+                try:
+                    tcp_header, tcp_data = self.unpackTCP(ip_data)
+                    break
+                except ValueError:
+                    continue
+
+            # check tcp flags:
+            if tcp_header['flags'] & 0x01 > 0:
+                # fin: stop accepting resp and sending ack
+                done = True
+
+            if tcp_header['flags'] & 0x10 == 0:
+                # no ack
+                break
+
+            recv_seq = tcp_header['seq']
+            recv_ack = tcp_header['ack']
+
+            if recv_ack == self.seq_number and recv_seq == self.seq_ack_num:
+                if len(tcp_data) > 0:
+                    # has resp
+                    f.write(tcp_data)
 
 
 
+                    self.seq_ack_num += len(data)
+                    self.sendPacket(self.seq_number, self.seq_ack_num, '', 'ACK')
+                else:
+                    continue
+            else:
+                # retransmit
+                self.sendPacket(self.seq_number, self.seq_ack_num, '', 'ACK')
+        f.close()
+        self.teardown()
+
+    def teardown(self):
+        self.sendPacket(self.seq_number, self.seq_ack_num, '', 'FIN-ACK')
+
+        while True:
+            recv_packet = self.rcv_socket.recvfrom(65565)
+
+            try:
+                ip_header, ip_data = self.unpackIP(recv_packet)
+            except ValueError:
+                continue
+
+            try:
+                tcp_header, tcp_data = self.unpackTCP(ip_data)
+                if tcp_header['flags'] & 0x11 != 0x11:  # if not fin-ack
+                    continue
+                break
+            except ValueError:
+                continue
+
+        recv_ack = tcp_header['ack']
+        if recv_ack == self.seq_number + 1:
+            recv_seq = tcp_header['seq']
+            self.sendPacket(recv_ack, recv_seq + 1, '', 'ACK')
 
     def unpackTCP(self, ip_data):
         tcp_header_keys = ['src', 'dest', 'seq', 'ack', 'off_res', 'flags', 'awnd', 'chksm', 'urg']
@@ -296,3 +370,8 @@ class RawSocket:
         else:
             print('tcp checksum has failed. replicate TCP ACK behavior')
             raise ValueError("incorrect TCP checksum")
+
+    def disconnect(self):
+        self.teardown()
+        self.socket.close()
+        self.rcv_socket.close()
