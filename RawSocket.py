@@ -1,6 +1,7 @@
 import math
 import random
-import socket, sys
+import socket
+import sys
 import time
 from struct import *
 
@@ -46,6 +47,21 @@ def checksum(msg):
     s = ~s & 0xffff
 
     return s
+
+def setFileName(url):
+    filename = ''
+    slash_index = url.rfind('/')
+    if slash_index == 6 or slash_index == len(url) - 1:
+        filename = "index.html"
+    else:
+        filename = url[slash_index+1:]
+
+    return filename
+
+
+
+
+
 
 
 def ip_verify_checksum(headerVals):
@@ -258,7 +274,7 @@ class RawSocket:
         dest_address = socket.inet_aton(self.dest_ip)
         placeholder = 0
         protocol = socket.IPPROTO_TCP
-        
+
         pseudo_header = pack('!4s4sBBH', source_address, dest_address, placeholder, protocol, len(ip_data))
         if tcp_verify_checksum(pseudo_header, tcp_header_vals, options, tcp_data):
             return tcp_headers, tcp_data
