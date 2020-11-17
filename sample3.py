@@ -326,9 +326,9 @@ def closeConnection():
 
     sendPacket(seq + SEQ_OFFSET, ack + ACK_OFFSET, 0x11, '')
 
-    starttime = time.clock()
+    starttime = time.process_time()
     while True:
-        if time.clock() > starttime + TIMEOUT:
+        if time.process_time() > starttime + TIMEOUT:
             return
         try:
             ip_packet = recSock.recv(65536)
@@ -379,9 +379,9 @@ Host: ''' + trimUrl + '\r\n\r\n'
 
     done = False
     while not done:
-        starttime = time.clock()
+        starttime = time.process_time()
         while True:
-            if time.clock() > starttime + TIMEOUT:
+            if time.process_time() > starttime + TIMEOUT:
                 closeConnection()
                 break
             try:
