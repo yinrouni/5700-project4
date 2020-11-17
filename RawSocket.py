@@ -171,7 +171,7 @@ class RawSocket:
     # unpack packet to get ip header and verification
     def unpackIP(self, packet):
         ip_header_keys = ['ver_ihl', 'tos', 'tot_len', 'id', 'frag_off', 'ttl', 'proto', 'check', 'src', 'dest']
-        ip_header_vals = unpack('!BBHHHBBB', packet[0:10]) + \
+        ip_header_vals = unpack('!BBHHHBB', packet[0:10]) + \
                          unpack('H', packet[10:12]) + \
                          unpack('!4s4s', packet[12:20])
         ip_headers = dict(zip(ip_header_keys, ip_header_vals))
