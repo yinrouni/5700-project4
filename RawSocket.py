@@ -48,6 +48,24 @@ def checksum(msg):
     return s
 
 
+def ip_verify_checksum(headerVals):
+    chcksm = headerVals[7]
+    ipHeader = pack('!BBHHHBBH4s4s', headerVals[0], headerVals[1], headerVals[2], headerVals[3], headerVals[4],
+                    headerVals[5], headerVals[6], 0, headerVals[8], headerVals[9])
+    calculatedChecksum = checksum(ipHeader)
+    return calculatedChecksum == chcksm
+
+
+def tcp_verify_checksum(pseudo_header, tcp_header_vals, options, tcp_data):
+    chcksm = tcp_header_vals[7]
+    headerAndData = pseudo_header + \
+                    pack('!HHLLBBHHH', tcp_header_vals[0], tcp_header_vals[1], tcp_header_vals[2],
+                         tcp_header_vals[3], tcp_header_vals[4], tcp_header_vals[5], tcp_header_vals[6], 0, tcp_header_vals[8]) + \
+                    options + tcp_data
+    calculatedChecksum = checksum(headerAndData)
+    return calculatedChecksum == chcksm
+
+
 class RawSocket:
 
     def __init__(self):
@@ -131,33 +149,120 @@ class RawSocket:
 
         return tcp_check
 
+    # unpack packet to get ip header and verification
+    def unpackIP(self, packet):
+        ip_header_keys = ['ver_ihl', 'tos', 'tot_len', 'id', 'frag_off', 'ttl', 'proto', 'check', 'src', 'dest']
+        ip_header_vals = unpack('!BBHHHBBB', packet[0:10]) + \
+                         unpack('H', packet[10:12]) + \
+                         unpack('!4s4s', packet[12:20])
+        ip_headers = dict(zip(ip_header_keys, ip_header_vals))
+
+        version = ip_headers['ver_ihl'] >> 4
+        if version != 4:
+            raise ValueError("not IPv4")
+        ihl = ip_headers['ver_ihl'] & 0x0F
+
+        # check that this is the destination
+        print(ip_headers['dest'], self.dest_ip)
+        if ip_headers['dest'] != self.dest_ip:
+            raise ValueError("invalid destination IP address")
+
+        # check that is tcp packet
+        if ip_headers['proto'] != 0x06:
+            raise ValueError("Not TCP packet")
+
+        # get the data from the ip packet
+        ip_data = packet[4 * ihl:]
+
+        if ip_verify_checksum(ip_header_vals):
+            return ip_headers, ip_data
+        else:
+            print('ip checksum has failed. replicate TCP ACK behavior')
+            raise ValueError("invalid IP checksum")
+
+    def sendPacket(self, seq_number, seq_ack_num, user_data, flags):
+        ip_header = self.getIPHeader()
+        tcp_header = self.getTCPHeader(seq_number, seq_ack_num, user_data, flags)
+        packet = ip_header + tcp_header
+        self.socket.sendto(packet, (self.dest_ip, self.dest_port))
+
     # handshake
     def handshake(self):
         seq_number = random.randint(0, math.pow(2, 31))
         seq_ack_num = 0
 
         # send first SYN
-        ip_header = self.getIPHeader()
-        tcp_header = self.getTCPHeader(seq_number, seq_ack_num, '', 'SYN')
-        packet = ip_header + tcp_header
-
+        self.sendPacket(seq_number,  seq_ack_num, '', 'SYN')
         start = time.clock()
-        self.socket.sendto(packet, (self.dest_ip, self.dest_port))
         print('sent SYN at ' + str(start))
 
         # receive SYN_ACK
         # TODO: retry and timeout
-        recv_packet = self.rcv_socket.recvfrom(65565)
-        print('received SYN-ACK at' + str(time.clock()))
-        print(recv_packet)
+        while True:
+            recv_packet = self.rcv_socket.recvfrom(65565)
+
+            print('received SYN-ACK at' + str(time.clock()))
+            print(recv_packet)
+
+            try:
+                ip_header, ip_data = self.unpackIP(recv_packet)
+            except ValueError:
+                print('ip verify fails')
+                continue
+            try:
+                tcp_header, tcp_data = self.unpackTCP(ip_data)
+
+                # check syn-ack
+                if tcp_header['flags'] & 0x12 != 0x12:
+                    continue
+                break
+
+            except ValueError:
+                continue
+
+        # send ACK
+        recv_ack = tcp_header['ack']
+        if seq_number + 1 == recv_ack:
+            seq_number += 1
+            seq_ack_num = tcp_header['seq'] + 1
+
+            self.sendPacket(seq_number, seq_ack_num, '', 'ACK')
+        else:
+            print('handshake fail')
 
 
 
-
-
-
-
-
-    #     send ACK
 
     # connect
+
+    def unpackTCP(self, ip_data):
+        tcp_header_keys = ['src', 'dest', 'seq', 'ack', 'off_res', 'flags', 'awnd', 'chksm', 'urg']
+        tcp_header_vals = unpack('!HHLLBBH', ip_data[0:16]) + \
+                          unpack('H', ip_data[16:18]) + \
+                          unpack('!H', ip_data[18:20])
+        tcp_headers = dict(zip(tcp_header_keys, tcp_header_vals))
+
+        # check for options
+        offset = tcp_headers['off_res'] >> 4
+        options = b''
+        if offset > 5:
+            options = ip_data[20:4 * offset]
+            print('options: ' + str(options))
+
+        tcp_data = ip_data[4 * offset:]
+
+        if tcp_headers['dest'] != self.source_port:
+            raise ValueError("incorrect destination port")
+
+        source_address = socket.inet_aton(self.source_ip)
+        dest_address = socket.inet_aton(self.dest_ip)
+        placeholder = 0
+        protocol = socket.IPPROTO_TCP
+        
+        pseudo_header = pack('!4s4sBBH', source_address, dest_address, placeholder, protocol, len(ip_data))
+        if tcp_verify_checksum(pseudo_header, tcp_header_vals, options, tcp_data):
+            return tcp_headers, tcp_data
+        else:
+            print('tcp checksum has failed. replicate TCP ACK behavior')
+            raise ValueError("incorrect TCP checksum")
+
