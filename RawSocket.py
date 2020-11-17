@@ -86,6 +86,8 @@ class RawSocket:
         self.dest_ip = ''
         self.source_port = random.randint(1024, 65530)
         self.dest_port = ''
+        self.seq_number = random.randint(0, math.pow(2, 31))
+        self.seq_ack_num = 0
 
         # create a raw socket
         try:
@@ -201,11 +203,9 @@ class RawSocket:
 
     # handshake
     def handshake(self):
-        seq_number = random.randint(0, math.pow(2, 31))
-        seq_ack_num = 0
 
         # send first SYN
-        self.sendPacket(seq_number, seq_ack_num, '', 'SYN')
+        self.sendPacket(self.seq_number, self.seq_ack_num, '', 'SYN')
         start = time.clock()
         print('sent SYN at ' + str(start))
 
@@ -235,11 +235,11 @@ class RawSocket:
 
         # send ACK
         recv_ack = tcp_header['ack']
-        if seq_number + 1 == recv_ack:
-            seq_number += 1
-            seq_ack_num = tcp_header['seq'] + 1
+        if self.seq_number + 1 == recv_ack:
+            self.seq_number += 1
+            self.seq_ack_num = tcp_header['seq'] + 1
 
-            self.sendPacket(seq_number, seq_ack_num, '', 'ACK')
+            self.sendPacket(self.seq_number, self.seq_ack_num, '', 'ACK')
         else:
             print('handshake fail')
 
@@ -253,6 +253,18 @@ class RawSocket:
         self.source_ip = socket.gethostbyname(socket.gethostname())
 
         self.handshake()
+
+    #  disconnect
+
+    # send
+    def send(self, request):
+        self.sendPacket(self.seq_number, self.seq_ack_num, request, 'PSH-ACK')
+        self.seq_number += len(request)
+
+    # get Response
+
+
+
 
     def unpackTCP(self, ip_data):
         tcp_header_keys = ['src', 'dest', 'seq', 'ack', 'off_res', 'flags', 'awnd', 'chksm', 'urg']
