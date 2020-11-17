@@ -48,20 +48,16 @@ def checksum(msg):
 
     return s
 
+
 def setFileName(url):
     filename = ''
     slash_index = url.rfind('/')
     if slash_index == 6 or slash_index == len(url) - 1:
         filename = "index.html"
     else:
-        filename = url[slash_index+1:]
+        filename = url[slash_index + 1:]
 
     return filename
-
-
-
-
-
 
 
 def ip_verify_checksum(headerVals):
@@ -76,7 +72,8 @@ def tcp_verify_checksum(pseudo_header, tcp_header_vals, options, tcp_data):
     chcksm = tcp_header_vals[7]
     headerAndData = pseudo_header + \
                     pack('!HHLLBBHHH', tcp_header_vals[0], tcp_header_vals[1], tcp_header_vals[2],
-                         tcp_header_vals[3], tcp_header_vals[4], tcp_header_vals[5], tcp_header_vals[6], 0, tcp_header_vals[8]) + \
+                         tcp_header_vals[3], tcp_header_vals[4], tcp_header_vals[5], tcp_header_vals[6], 0,
+                         tcp_header_vals[8]) + \
                     options + tcp_data
     calculatedChecksum = checksum(headerAndData)
     return calculatedChecksum == chcksm
@@ -87,7 +84,7 @@ class RawSocket:
     def __init__(self):
         self.source_ip = ''
         self.dest_ip = ''
-        self.source_port = ''
+        self.source_port = random.randint(1024, 65530)
         self.dest_port = ''
 
         # create a raw socket
@@ -208,7 +205,7 @@ class RawSocket:
         seq_ack_num = 0
 
         # send first SYN
-        self.sendPacket(seq_number,  seq_ack_num, '', 'SYN')
+        self.sendPacket(seq_number, seq_ack_num, '', 'SYN')
         start = time.clock()
         print('sent SYN at ' + str(start))
 
@@ -246,10 +243,16 @@ class RawSocket:
         else:
             print('handshake fail')
 
-
-
-
     # connect
+    def connect(self, address_tuple):
+        hostname = address_tuple[0]
+        self.dest_port = address_tuple[1]
+        self.dest_ip = socket.gethostbyname(hostname)
+
+        # API to get IP of source machine
+        self.source_ip = socket.gethostbyname(socket.gethostname())
+
+        self.handshake()
 
     def unpackTCP(self, ip_data):
         tcp_header_keys = ['src', 'dest', 'seq', 'ack', 'off_res', 'flags', 'awnd', 'chksm', 'urg']
@@ -281,4 +284,3 @@ class RawSocket:
         else:
             print('tcp checksum has failed. replicate TCP ACK behavior')
             raise ValueError("incorrect TCP checksum")
-
