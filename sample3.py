@@ -261,9 +261,9 @@ def tcp_handshake():
 
     sendPacket(seq, 0, tcp_flags, '')
 
-    starttime = time.clock()
+    starttime = time.process_time()
     while True:
-        if time.clock() > starttime + TIMEOUT:
+        if time.process_time() > starttime + TIMEOUT:
             closeConnection()
             break
         try:
