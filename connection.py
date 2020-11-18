@@ -23,20 +23,21 @@ def generaterHeader(method, path, cookie, data):
         prefix = "%s %s HTTP/1.1\r\nHost: %s\r\n" % (method, path, HOST)
 
     if cookie and data:
-        return ("%sCookie: %s\r\n\r\n%s" % (prefix, cookie, data)).encode()
+        return ("%sCookie: %s\r\n\r\n%s" % (prefix, cookie, data))
     elif not data and cookie:
-        return ("%sCookie: %s\r\n\r\n" % (prefix, cookie)).encode()
+        return ("%sCookie: %s\r\n\r\n" % (prefix, cookie))
 
     elif data and not cookie:
-        return ("%s\r\n%s" % (prefix, data)).encode()
+        return ("%s\r\n%s" % (prefix, data))
 
-    return ("%s\r\n" % prefix).encode()
+    return ("%s\r\n" % prefix)
 print(socket.getfqdn())
 print(socket.gethostbyname_ex(socket.gethostname())[-1])
 client_socket = RawSocket.RawSocket()
 server_address = (socket.gethostbyname(HOST), PORT)
 client_socket.connect(server_address)
-print('connect')
+print('connected')
 
-# request_header = generaterHeader("GET", '/accounts/login/?next=/fakebook/', None, None)
-# client_socket
+request_header = generaterHeader("GET", '/accounts/login/?next=/fakebook/', None, None)
+client_socket.send(request_header)
+client_socket.recv()

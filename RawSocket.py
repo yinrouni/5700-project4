@@ -41,7 +41,10 @@ def checksum(msg):
 
     # loop taking 2 characters at a time
     for i in range(0, len(msg), 2):
-        w = msg[i] + (msg[i + 1] << 8)
+        if i == len(msg)-1:
+            w = msg[i]
+        else :
+            w = msg[i] + (msg[i + 1] << 8)
         s = s + w
 
     s = (s >> 16) + (s & 0xffff)
@@ -278,7 +281,7 @@ class RawSocket:
         done = False
         while not done:
             while True:
-                recv_packet = self.rcv_socket.recvfrom(65565)
+                recv_packet = self.rcv_socket.recv(65565)
 
                 try:
                     ip_header, ip_data = self.unpackIP(recv_packet)
@@ -306,11 +309,11 @@ class RawSocket:
             if recv_ack == self.seq_number and recv_seq == self.seq_ack_num:
                 if len(tcp_data) > 0:
                     # has resp
-                    f.write(tcp_data)
+                    f.write(tcp_data.decode())
 
 
 
-                    self.seq_ack_num += len(data)
+                    self.seq_ack_num += len(tcp_data)
                     self.sendPacket(self.seq_number, self.seq_ack_num, '', 'ACK')
                 else:
                     continue
@@ -324,7 +327,7 @@ class RawSocket:
         self.sendPacket(self.seq_number, self.seq_ack_num, '', 'FIN-ACK')
 
         while True:
-            recv_packet = self.rcv_socket.recvfrom(65565)
+            recv_packet = self.rcv_socket.recv(65565)
 
             try:
                 ip_header, ip_data = self.unpackIP(recv_packet)
