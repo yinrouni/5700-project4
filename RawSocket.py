@@ -286,7 +286,7 @@ class RawSocket:
                 try:
                     ip_packet = self.rcv_socket.recv(65536)
                     ip_header, ip_data = self.unpackIP(ip_packet)
-                    tcp_header, tcp_data = self.unpackTCP(ip_data)
+                    tcp_header, tcp_response = self.unpackTCP(ip_data)
                     break
                 except ValueError:
                     now = time.process_time()
