@@ -97,6 +97,8 @@ class RawSocket:
         self.seq_ack_num = 0
         self.seq_offset = 0
         self.ack_offset = 0
+        self.cwnd = 1
+        self.last_ack_time = time.process_time()
 
         # create a raw socket
         try:
@@ -168,7 +170,7 @@ class RawSocket:
 
         psh = pack('!4s4sBBH', source_address, dest_address, placeholder, protocol, tcp_length)
 
-        psh = psh + tcp_header + user_data
+        psh = psh + tcp_header + user_data.encode()
 
         tcp_check = checksum(psh)
 
@@ -212,26 +214,21 @@ class RawSocket:
         ip_header = self.getIPHeader()
         tcp_header = self.getTCPHeader(seq_number, seq_ack_num, user_data, flags)
 
-        packet = ip_header + tcp_header + user_data
+        packet = ip_header + tcp_header + user_data.encode()
         self.socket.sendto(packet, (self.dest_ip, self.dest_port))
 
     # handshake
     def handshake(self):
 
         # send first SYN
-        self.sendPacket(self.seq_number, self.seq_ack_num, ''.encode(), 'SYN')
+        self.sendPacket(self.seq_number, self.seq_ack_num, '', 'SYN')
         start = time.process_time()
         print('sent SYN at ' + str(start))
 
         # receive SYN_ACK
         # TODO: retry and timeout
         while True:
-            print('enter loop')
             recv_packet = self.rcv_socket.recv(65565)
-
-            print('received SYN-ACK at' + str(time.process_time()))
-            print(recv_packet)
-
             try:
                 ip_header, ip_data = self.unpackIP(recv_packet)
             except ValueError:
@@ -254,7 +251,7 @@ class RawSocket:
             self.seq_number += 1
             self.seq_ack_num = tcp_header['seq'] + 1
 
-            self.sendPacket(self.seq_number, self.seq_ack_num, ''.encode(), 'ACK')
+            self.sendPacket(self.seq_number, self.seq_ack_num, '', 'ACK')
         else:
             print('handshake fail')
 
@@ -280,51 +277,75 @@ class RawSocket:
     # get Response
     def recv(self):
         f = open('demo.txt', 'r+b')
+        head_body_flag = 0
 
         done = False
         while not done:
-            while True:
+            start = time.process_time()
+            now = start
+            while now - start < RESEND_THRESHOLD:
                 recv_packet = self.rcv_socket.recv(65565)
 
                 try:
                     ip_header, ip_data = self.unpackIP(recv_packet)
                 except ValueError:
+                    now = time.process_time()
                     continue
 
                 try:
                     tcp_header, tcp_data = self.unpackTCP(ip_data)
                     break
                 except ValueError:
+                    now = time.process_time()
                     continue
 
-            # check tcp flags:
+            if time.process_time() - self.last_ack_time > 3 * RESEND_THRESHOLD:
+                # TODO: tear down
+                print('time to tear down connect')
+                return
+            if now - start > RESEND_THRESHOLD :
+                self.cwnd = 1
+
+            # # check tcp flags:
             if tcp_header['flags'] & 0x01 > 0:
                 # fin: stop accepting resp and sending ack
                 done = True
-
-            if tcp_header['flags'] & 0x10 == 0:
-                # no ack
-                break
+            #
+            # if tcp_header['flags'] & 0x10 == 0:
+            #     # no ack
+            #     break
 
             recv_seq = tcp_header['seq']
             recv_ack = tcp_header['ack']
 
             if recv_ack == self.seq_number + self.seq_offset and recv_seq == self.seq_ack_num + self.ack_offset:
+                self.last_ack_time = time.process_time()
+                self.cwnd = min(999, self.cwnd) + 1
+
                 self.ack_offset += len(tcp_data)
-                if len(tcp_data) > 0:
-                    # has resp
+
+                if not head_body_flag:
+                    # TODO: parse tcp response into header and body
+                    f.write(tcp_data)
+
+                # if len(tcp_data) > 0:
+                #     # has resp
+                #     f.write(tcp_data)
+                else:
                     f.write(tcp_data)
 
                     # self.seq_ack_num += len(tcp_data)
                 # self.sendPacket(self.seq_number, self.seq_ack_num, ''.encode(), 'ACK')
                 # else:
                 #     continue
-            # else:
+            else:
+                self.cwnd = 1
 
-            # retransmit
-            self.sendPacket(self.seq_number+ self.seq_offset, self.seq_ack_num + self.ack_offset, ''.encode(), 'ACK')
+            # send ack
+            self.sendPacket(self.seq_number+ self.seq_offset, self.seq_ack_num + self.ack_offset, '', 'ACK')
+
         f.close()
-        self.teardown()
+        # self.teardown()
 
     def teardown(self):
         self.sendPacket(self.seq_number, self.seq_ack_num, ''.encode(), 'FIN-ACK')

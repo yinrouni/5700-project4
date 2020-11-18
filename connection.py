@@ -1,7 +1,7 @@
 import RawSocket
 import socket
 
-HOST = 'cs5700fa20.ccs.neu.edu'  # Server hostname or IP address
+HOST = 'david.choffnes.com'  # Server hostname or IP address
 PORT = 80  # Port
 
 
@@ -38,6 +38,6 @@ server_address = (socket.gethostbyname(HOST), PORT)
 client_socket.connect(server_address)
 print('connected')
 
-request_header = generaterHeader("GET", '/accounts/login/?next=/fakebook/', None, None)
-client_socket.send(request_header.encode())
+request_header = generaterHeader("GET", '/classes/cs4700fa20/2MB.log', None, None)
+client_socket.send(request_header)
 client_socket.recv()
