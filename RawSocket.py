@@ -202,6 +202,7 @@ class RawSocket:
             raise ValueError("Not TCP packet")
 
         # get the data from the ip packet
+        print('IHL ', ihl)
         ip_data = packet[4 * ihl:]
 
         if ip_verify_checksum(ip_header_vals):
@@ -343,7 +344,7 @@ class RawSocket:
                 self.cwnd = 1
 
             # send ack
-            self.sendPacket(self.seq_number+ self.seq_offset, self.seq_ack_num + self.ack_offset, '', 'ACK')
+            self.sendPacket(self.seq_number + self.seq_offset, self.seq_ack_num + self.ack_offset, '', 'ACK')
 
         f.close()
         # self.teardown()
@@ -354,7 +355,7 @@ class RawSocket:
         start = time.process_time()
         now = start
 
-        while now - start < RESEND_THRESHOLD:
+        while now - start <= RESEND_THRESHOLD:
             recv_packet = self.rcv_socket.recv(65565)
 
             try:
@@ -364,21 +365,20 @@ class RawSocket:
 
             try:
                 tcp_header, tcp_data = self.unpackTCP(ip_data)
-                if tcp_header['flags'] % 2 != 1:  # if not fin
-                    continue
-                break
+                if tcp_header['flags'] % 2 == 1:  # if not fin
+                    break
             except ValueError:
                 continue
             now = time.process_time()
 
-        if now -start > RESEND_THRESHOLD:
+        if now - start > RESEND_THRESHOLD:
             #retry
             self.teardown()
 
         recv_ack = tcp_header['ack']
         if recv_ack == self.seq_number + self.seq_offset+ 1:
-            recv_ack = tcp_header['seq']
-            self.sendPacket(self.seq_number + self.seq_offset+ 1, recv_ack + 1, '', 'ACK')
+            recv_seq = tcp_header['seq']
+            self.sendPacket(self.seq_number + self.seq_offset+ 1, recv_seq + 1, '', 'ACK')
         self.close()
         return
 
