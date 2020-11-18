@@ -463,7 +463,7 @@ class RawSocket:
                                       0,
                                       tcp_header_vals[8]) \
                        + options + tcp_data
-        actual_c_sum = calculate_checksum(header1_data)
+        actual_c_sum = checksum(header1_data)
 
         if c_sum != actual_c_sum:
             print("Invalid packet")
