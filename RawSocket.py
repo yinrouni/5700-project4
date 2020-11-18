@@ -307,10 +307,10 @@ class RawSocket:
                 if not tcp_header_and_body_flag:
                     # headers, body = get_body_and_headers_from_tcp_data(tcp_response)
                     # if len(body) > 0:
-                    local_file.write(tcp_response)
+                    f.write(tcp_response)
                     tcp_header_and_body_flag = 1
                 else:
-                    local_file.write(tcp_response)
+                    f.write(tcp_response)
             else:
                 self.cwnd = 1
             self.sendPacket(self.seq_number + self.seq_offset, self.seq_ack_num + self.ack_offset, '', 'ACK')
