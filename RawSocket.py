@@ -451,7 +451,7 @@ class RawSocket:
 
         pseudo_header = pack('!4s4sBBH', dest_address, source_address, placeholder, protocol, len(ip_data))
 
-        c_sum = tcp_header_values[7]
+        c_sum = tcp_header_vals[7]
         header1_data = header1 + pack('!HHLLBBHHH',
                                       tcp_header_vals[0],
                                       tcp_header_vals[1],
