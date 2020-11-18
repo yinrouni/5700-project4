@@ -95,6 +95,8 @@ class RawSocket:
         self.dest_port = ''
         self.seq_number = random.randint(0, math.pow(2, 31))
         self.seq_ack_num = 0
+        self.seq_offset = 0
+        self.ack_offset = 0
 
         # create a raw socket
         try:
@@ -272,11 +274,12 @@ class RawSocket:
     # send
     def send(self, request):
         self.sendPacket(self.seq_number, self.seq_ack_num, request, 'PSH-ACK')
-        self.seq_number += len(request)
+        # self.seq_number += len(request)
+        self.seq_offset += len(request)
 
     # get Response
     def recv(self):
-        f = open('demo.txt', 'a')
+        f = open('demo.txt', 'r+b')
 
         done = False
         while not done:
@@ -306,20 +309,20 @@ class RawSocket:
             recv_seq = tcp_header['seq']
             recv_ack = tcp_header['ack']
 
-            if recv_ack == self.seq_number and recv_seq == self.seq_ack_num:
+            if recv_ack == self.seq_number + self.seq_offset and recv_seq == self.seq_ack_num + self.ack_offset:
+                self.ack_offset += len(tcp_data)
                 if len(tcp_data) > 0:
                     # has resp
-                    f.write(tcp_data.decode())
+                    f.write(tcp_data)
 
+                    # self.seq_ack_num += len(tcp_data)
+                # self.sendPacket(self.seq_number, self.seq_ack_num, ''.encode(), 'ACK')
+                # else:
+                #     continue
+            # else:
 
-
-                    self.seq_ack_num += len(tcp_data)
-                    self.sendPacket(self.seq_number, self.seq_ack_num, ''.encode(), 'ACK')
-                else:
-                    continue
-            else:
-                # retransmit
-                self.sendPacket(self.seq_number, self.seq_ack_num, ''.encode(), 'ACK')
+            # retransmit
+            self.sendPacket(self.seq_number+ self.seq_offset, self.seq_ack_num + self.ack_offset, ''.encode(), 'ACK')
         f.close()
         self.teardown()
 
@@ -371,7 +374,7 @@ class RawSocket:
         placeholder = 0
         protocol = socket.IPPROTO_TCP
 
-        pseudo_header = pack('!4s4sBBH',dest_address, source_address, placeholder, protocol, len(ip_data))
+        pseudo_header = pack('!4s4sBBH', dest_address, source_address, placeholder, protocol, len(ip_data))
         if tcp_verify_checksum(pseudo_header, tcp_header_vals, options, tcp_data):
             return tcp_headers, tcp_data
         else:
