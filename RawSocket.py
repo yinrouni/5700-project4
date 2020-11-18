@@ -166,7 +166,7 @@ class RawSocket:
 
         psh = pack('!4s4sBBH', source_address, dest_address, placeholder, protocol, tcp_length)
 
-        psh = psh + tcp_header + user_data.encode()
+        psh = psh + tcp_header + user_data
 
         tcp_check = checksum(psh)
 
@@ -210,14 +210,14 @@ class RawSocket:
         ip_header = self.getIPHeader()
         tcp_header = self.getTCPHeader(seq_number, seq_ack_num, user_data, flags)
 
-        packet = ip_header + tcp_header + user_data.encode()
+        packet = ip_header + tcp_header + user_data
         self.socket.sendto(packet, (self.dest_ip, self.dest_port))
 
     # handshake
     def handshake(self):
 
         # send first SYN
-        self.sendPacket(self.seq_number, self.seq_ack_num, '', 'SYN')
+        self.sendPacket(self.seq_number, self.seq_ack_num, ''.encode(), 'SYN')
         start = time.process_time()
         print('sent SYN at ' + str(start))
 
@@ -252,7 +252,7 @@ class RawSocket:
             self.seq_number += 1
             self.seq_ack_num = tcp_header['seq'] + 1
 
-            self.sendPacket(self.seq_number, self.seq_ack_num, '', 'ACK')
+            self.sendPacket(self.seq_number, self.seq_ack_num, ''.encode(), 'ACK')
         else:
             print('handshake fail')
 
@@ -314,17 +314,17 @@ class RawSocket:
 
 
                     self.seq_ack_num += len(tcp_data)
-                    self.sendPacket(self.seq_number, self.seq_ack_num, '', 'ACK')
+                    self.sendPacket(self.seq_number, self.seq_ack_num, ''.encode(), 'ACK')
                 else:
                     continue
             else:
                 # retransmit
-                self.sendPacket(self.seq_number, self.seq_ack_num, '', 'ACK')
+                self.sendPacket(self.seq_number, self.seq_ack_num, ''.encode(), 'ACK')
         f.close()
         self.teardown()
 
     def teardown(self):
-        self.sendPacket(self.seq_number, self.seq_ack_num, '', 'FIN-ACK')
+        self.sendPacket(self.seq_number, self.seq_ack_num, ''.encode(), 'FIN-ACK')
 
         while True:
             recv_packet = self.rcv_socket.recv(65565)
@@ -345,7 +345,7 @@ class RawSocket:
         recv_ack = tcp_header['ack']
         if recv_ack == self.seq_number + 1:
             recv_seq = tcp_header['seq']
-            self.sendPacket(recv_ack, recv_seq + 1, '', 'ACK')
+            self.sendPacket(recv_ack, recv_seq + 1, ''.encode(), 'ACK')
 
     def unpackTCP(self, ip_data):
         tcp_header_keys = ['src', 'dest', 'seq', 'ack', 'off_res', 'flags', 'awnd', 'chksm', 'urg']
@@ -371,7 +371,7 @@ class RawSocket:
         placeholder = 0
         protocol = socket.IPPROTO_TCP
 
-        pseudo_header = pack('!4s4sBBH', source_address, dest_address, placeholder, protocol, len(ip_data))
+        pseudo_header = pack('!4s4sBBH',dest_address, source_address, placeholder, protocol, len(ip_data))
         if tcp_verify_checksum(pseudo_header, tcp_header_vals, options, tcp_data):
             return tcp_headers, tcp_data
         else:

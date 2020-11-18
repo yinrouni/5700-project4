@@ -39,5 +39,5 @@ client_socket.connect(server_address)
 print('connected')
 
 request_header = generaterHeader("GET", '/accounts/login/?next=/fakebook/', None, None)
-client_socket.send(request_header)
+client_socket.send(request_header.encode())
 client_socket.recv()
