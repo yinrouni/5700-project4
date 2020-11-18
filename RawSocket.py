@@ -301,6 +301,7 @@ class RawSocket:
 
             if time.process_time() - self.last_ack_time > 3 * RESEND_THRESHOLD:
                 # TODO: tear down
+                self.teardown()
                 print('time to tear down connect')
                 return
             if now - start > RESEND_THRESHOLD :
@@ -348,9 +349,12 @@ class RawSocket:
         # self.teardown()
 
     def teardown(self):
-        self.sendPacket(self.seq_number, self.seq_ack_num, ''.encode(), 'FIN-ACK')
+        self.sendPacket(self.seq_number + self.seq_offset, self.seq_ack_num + self.ack_offset, '', 'FIN')
 
-        while True:
+        start = time.process_time()
+        now = start
+
+        while now - start < RESEND_THRESHOLD:
             recv_packet = self.rcv_socket.recv(65565)
 
             try:
@@ -360,16 +364,27 @@ class RawSocket:
 
             try:
                 tcp_header, tcp_data = self.unpackTCP(ip_data)
-                if tcp_header['flags'] & 0x11 != 0x11:  # if not fin-ack
+                if tcp_header['flags'] % 2 != 1:  # if not fin
                     continue
                 break
             except ValueError:
                 continue
+            now = time.process_time()
+
+        if now -start > RESEND_THRESHOLD:
+            #retry
+            self.teardown()
 
         recv_ack = tcp_header['ack']
-        if recv_ack == self.seq_number + 1:
-            recv_seq = tcp_header['seq']
-            self.sendPacket(recv_ack, recv_seq + 1, ''.encode(), 'ACK')
+        if recv_ack == self.seq_number + self.seq_offset+ 1:
+            recv_ack = tcp_header['seq']
+            self.sendPacket(self.seq_number + self.seq_offset+ 1, recv_ack + 1, '', 'ACK')
+        self.close()
+        return
+
+    def close(self):
+        self.socket.close()
+        self.rcv_socket.close()
 
     def unpackTCP(self, ip_data):
         tcp_header_keys = ['src', 'dest', 'seq', 'ack', 'off_res', 'flags', 'awnd', 'chksm', 'urg']
