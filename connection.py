@@ -20,7 +20,7 @@ def generaterHeader(method, path, cookie, data):
         prefix = "%s %s HTTP/1.1\r\nHost: %s\r\nContent-Type: application/x-www-form-urlencoded" \
                  "\r\nContent-Length: %s\r\n" % (method, path, HOST, len(data))
     else:
-        prefix = "%s %s HTTP/1.0\r\nHost: %s\r\nConnection: keep-alive\r\n" % (method, path, HOST)
+        prefix = "%s %s HTTP/1.1\r\nHost: %s\r\n" % (method, path, HOST)
 
     if cookie and data:
         return ("%sCookie: %s\r\n\r\n%s" % (prefix, cookie, data))
