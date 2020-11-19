@@ -1,4 +1,4 @@
-import RawSocket
+import RawSocket1
 import socket
 
 HOST = 'david.choffnes.com'  # Server hostname or IP address
@@ -32,7 +32,7 @@ def generaterHeader(method, path, cookie, data):
 
     return ("%s\r\n" % prefix)
 
-client_socket = RawSocket.RawSocket()
+client_socket = RawSocket1.RawSocket()
 server_address = (socket.gethostbyname(HOST), PORT)
 client_socket.connect(server_address)
 print('connected')
