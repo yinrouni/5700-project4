@@ -197,7 +197,7 @@ class RawSocket:
         return ip_headers, tcp_packet
 
     def handshake(self):
-        send_packet(self.seq, 0, 0x02, '')
+        self.send_packet(self.seq, 0, 0x02, '')
         ip_packet = self.recv_sock.recv(65536)
         # packet = createIPHeader(0) + createTCPPacket(0, 0, 2, '')
         # send_sock.sendto(packet, (DEST_IP, 0))
@@ -218,7 +218,7 @@ class RawSocket:
                 self.seq = response_ack
                 response_seq = tcp_headers['seq']
                 self.ack = response_seq + 1
-                send_packet(self.seq, self.ack, 0x10, '')
+                self.send_packet(self.seq, self.ack, 0x10, '')
                 # print("hands shook well")
                 break
             else:
