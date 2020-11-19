@@ -45,7 +45,6 @@ class RawSocket:
         self.seq = random.randint(0, 2 ** 32 - 1)
         self.ack = 0
 
-        domain_url = get_host_name()
         # print("DOMAIN", domain_url)
         self.DEST_IP = ''
         self.DEST_PORT = 80
