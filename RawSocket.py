@@ -277,6 +277,12 @@ class RawSocket:
         # self.seq_number += len(request)
         self.seq_offset += len(request)
 
+    def get_body_and_headers_from_tcp_data(self, tcp_data):
+        body = tcp_data.split(bytes('\r\n\r\n', 'utf-8'), 1)
+        if len(body) == 1:
+            return body[0], ''
+        return body[0], body[1]
+
     # get Response
     def recv(self):
         f = open('demo.txt', 'r+b')
@@ -307,10 +313,10 @@ class RawSocket:
                 self.cwnd = min(self.cwnd, 999) + 1
                 self.ack_offset += len(tcp_response)
                 if not tcp_header_and_body_flag:
-                    # headers, body = get_body_and_headers_from_tcp_data(tcp_response)
-                    # if len(body) > 0:
-                    f.write(tcp_response)
-                    tcp_header_and_body_flag = 1
+                    headers, body = get_body_and_headers_from_tcp_data(tcp_response)
+                    if len(body) > 0:
+                        f.write(body)
+                        tcp_header_and_body_flag = 1
                 else:
                     f.write(tcp_response)
             else:
