@@ -53,8 +53,8 @@ class RawSocket:
         self.SRC_IP = subprocess.getoutput("hostname -I")
         self.SRC_PORT = random.randint(1024, 65535)
 
-        self.SRC_ADDR = socket.inet_aton(self.SRC_IP)
-        self.DEST_ADDR = socket.inet_aton(self.DEST_IP)
+        self.SRC_ADDR = ''
+        self.DEST_ADDR = ''
         self.seq_addr = 0
         self.ack_addr = 0
         self.send_sock = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_RAW)
@@ -319,5 +319,8 @@ class RawSocket:
     def connect(self, address):
         self.DEST_IP = address[0]
         self.DEST_PORT = address[1]
+
+        self.SRC_ADDR = socket.inet_aton(self.SRC_IP)
+        self.DEST_ADDR = socket.inet_aton(self.DEST_IP)
 
 
