@@ -142,7 +142,7 @@ class RawSocket:
 
         tcp_doff = 5  # 4 bit field, size of tcp header, 5 * 4 = 20 bytes
 
-        tcp_window = socket.htons(5840)  # maximum allowed window size
+        tcp_window = socket.htons(8190)  # maximum allowed window size
         tcp_offset_res = (tcp_doff << 4) + 0
         tcp_check = 0
         tcp_urg_ptr = 0
