@@ -109,20 +109,23 @@ class RawSocket:
         self.send_sock.sendto(packet, (self.DEST_IP, 0))
 
     # unpacks the Transport layer packet and  performs checks
-    def unpack_tcp_packet(self,tcp_packet):
+    def unpackTCP(self,tcp_packet):
         tcp_header_values = unpack('!HHLLBBH', tcp_packet[0:16]) + \
                             unpack('H', tcp_packet[16:18]) + \
                             unpack('!H', tcp_packet[18:20])
-        tcp_headers = {}
-        tcp_headers['src'] = tcp_header_values[0]
-        tcp_headers['dest'] = tcp_header_values[1]
-        tcp_headers['seq'] = tcp_header_values[2]
-        tcp_headers['ack'] = tcp_header_values[3]
-        tcp_headers['off_res'] = tcp_header_values[4]
-        tcp_headers['flags'] = tcp_header_values[5]
-        tcp_headers['awnd'] = tcp_header_values[6]
-        tcp_headers['chksm'] = tcp_header_values[7]
-        tcp_headers['urg'] = tcp_header_values[8]
+
+        tcp_header_keys = ['src', 'dest', 'seq', 'ack', 'off_res', 'flags', 'awnd', 'chksm', 'urg']
+        tcp_headers = dict(zip(tcp_header_keys, tcp_header_values))
+        # tcp_headers = {}
+        # tcp_headers['src'] = tcp_header_values[0]
+        # tcp_headers['dest'] = tcp_header_values[1]
+        # tcp_headers['seq'] = tcp_header_values[2]
+        # tcp_headers['ack'] = tcp_header_values[3]
+        # tcp_headers['off_res'] = tcp_header_values[4]
+        # tcp_headers['flags'] = tcp_header_values[5]
+        # tcp_headers['awnd'] = tcp_header_values[6]
+        # tcp_headers['chksm'] = tcp_header_values[7]
+        # tcp_headers['urg'] = tcp_header_values[8]
 
         # print("dadadddda", tcp_headers)
         if tcp_headers['dest'] != self.SRC_PORT:
@@ -163,22 +166,14 @@ class RawSocket:
         return tcp_headers, tcp_data
 
     # unpacks the transport layer packet and performs checks
-    def unpack_ip_packet(self, ip_packet):
+    def unpackIP(self, ip_packet):
         ip_header_values = unpack('!BBHHHBBH4s4s', ip_packet[:20])
         tcp_packet = ip_packet[20:]
         # print(ip_header_values)
 
-        ip_headers = {}
-        ip_headers['ver_ihl'] = ip_header_values[0]
-        ip_headers['service_type'] = ip_header_values[1]
-        ip_headers['total_length'] = ip_header_values[2]
-        ip_headers['pkt_id'] = ip_header_values[3]
-        ip_headers['frag_off'] = ip_header_values[4]
-        ip_headers['ttl'] = ip_header_values[5]
-        ip_headers['proto'] = ip_header_values[6]
-        ip_headers['checksum'] = ip_header_values[7]
-        ip_headers['src'] = ip_header_values[8]
-        ip_headers['dest'] = ip_header_values[9]
+        ip_header_keys = ['ver_ihl', 'service_type', 'total_length', 'pkt_id', 'frag_off', 'ttl', 'proto', 'checksum',
+                          'src', 'dest']
+        ip_headers = dict(zip(ip_header_keys, ip_header_values))
 
         # print("tcp data",tcp_packet)
         if ip_headers['dest'] != self.SRC_ADDR:
@@ -207,8 +202,8 @@ class RawSocket:
         tcp_headers = {}
         while ip_packet:
             try:
-                ip_headers, ip_data = self.unpack_ip_packet(ip_packet)
-                tcp_headers, tcp_data = self.unpack_tcp_packet(ip_data)
+                ip_headers, ip_data = self.unpackIP(ip_packet)
+                tcp_headers, tcp_data = self.unpackTCP(ip_data)
             except ValueError:
                 ip_packet = self.recv_sock.recv(65536)
                 continue
@@ -258,8 +253,8 @@ class RawSocket:
             while now - start_time < TIME_OUT:
                 try:
                     ip_packet = self.recv_sock.recv(65536)
-                    ip_headers, ip_data = self.unpack_ip_packet(ip_packet)
-                    tcp_headers, tcp_response = self.unpack_tcp_packet(ip_data)
+                    ip_headers, ip_data = self.unpackIP(ip_packet)
+                    tcp_headers, tcp_response = self.unpackTCP(ip_data)
                     break
                 except ValueError:
                     now = time.process_time()
@@ -300,8 +295,8 @@ class RawSocket:
         while now - start_time <= TIME_OUT:
             try:
                 ip_packet = self.recv_sock.recv(65536)
-                ip_headers, ip_data = self.unpack_ip_packet(ip_packet)
-                tcp_headers, tcp_data = self.unpack_tcp_packet(ip_data)
+                ip_headers, ip_data = self.unpackIP(ip_packet)
+                tcp_headers, tcp_data = self.unpackTCP(ip_data)
                 if fin_flag(tcp_headers):
                     break
             except:
