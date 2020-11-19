@@ -230,9 +230,7 @@ class RawSocket:
 
     def send(self, get_request_data):
         print("STARTED DOWNLOADING")
-        global seq, ack, URL, seq_addr, ack_addr
         self.handshake()
-        local_file_name = 'file.txt'
         # index = local_file_name.rfind("/")
         # if index == len(local_file_name) - 1 or index == -1:
         #     local_file_name = 'index.html'
@@ -241,15 +239,14 @@ class RawSocket:
         # # print("WRITING DATA TO::::", local_file_name)
         # temp_file = open(local_file_name, 'w+')
         # temp_file.close()
-        local_file = open(local_file_name, 'r+b')
 
         self.send_packet(self.seq, self.ack, 0x18, get_request_data)
         self.seq_addr += len(get_request_data)
-        self.recv(local_file)
-        print("DOWNLOAD SUCCESSFUL TO::" + local_file_name)
 
-    def recv(self,local_file):
+    def recv(self):
         # print("vacha")
+        local_file_name = 'file.txt'
+        local_file = open(local_file_name, 'r+b') 
         tcp_header_and_body_flag = 0
         while True:
             start_time = time.process_time()
@@ -288,6 +285,7 @@ class RawSocket:
             if fin_flag(tcp_headers):
                 break
         local_file.close()
+        print("DOWNLOAD SUCCESSFUL TO::" + local_file_name)
 
     def disconnect(self):
         self.send_packet(self.seq + self.seq_addr, self.ack + self.ack_addr, 0x01, '')

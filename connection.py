@@ -39,5 +39,5 @@ print('connected')
 
 request_header = generaterHeader("GET", '/classes/cs4700fa20/2MB.log', None, None)
 client_socket.send(request_header)
-#client_socket.recv()
+client_socket.recv()
 client_socket.disconnect()
