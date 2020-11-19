@@ -202,7 +202,6 @@ class RawSocket:
             raise ValueError("Not TCP packet")
 
         # get the data from the ip packet
-        print('IHL ', ihl)
         ip_data = packet[4 * ihl:]
 
         if ip_verify_checksum(ip_header_vals):
@@ -313,7 +312,7 @@ class RawSocket:
                 self.cwnd = min(self.cwnd, 999) + 1
                 self.ack_offset += len(tcp_response)
                 if not tcp_header_and_body_flag:
-                    headers, body = get_body_and_headers_from_tcp_data(tcp_response)
+                    headers, body = self.get_body_and_headers_from_tcp_data(tcp_response)
                     if len(body) > 0:
                         f.write(body)
                         tcp_header_and_body_flag = 1
