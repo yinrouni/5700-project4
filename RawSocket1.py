@@ -35,7 +35,7 @@ def calculate_checksum(msg):
     return s
 
 PACK_ID = random.randint(15000, 65535)
-TCP_WINDOW = socket.htons(5840)
+TCP_WINDOW = socket.htons(8192)
 SOCK_PROTOTYPE = socket.IPPROTO_TCP
 TIME_OUT = 60
 

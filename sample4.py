@@ -10,7 +10,7 @@ import sys
 # gets the IP of the host system
 def getSourceIP():
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    s.connect(("cs5700f16.ccs.neu.edu", 80))
+    s.connect(("cs5700fa20.ccs.neu.edu", 80))
     return s.getsockname()[0]
 
 
