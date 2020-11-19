@@ -53,8 +53,8 @@ class RawSocket:
         self.SRC_IP = subprocess.getoutput("hostname -I")
         self.SRC_PORT = random.randint(1024, 65535)
 
-        self.SRC_ADDR = socket.inet_aton(SRC_IP)
-        self.DEST_ADDR = socket.inet_aton(DEST_IP)
+        self.SRC_ADDR = socket.inet_aton(self.SRC_IP)
+        self.DEST_ADDR = socket.inet_aton(self.DEST_IP)
         self.seq_addr = 0
         self.ack_addr = 0
         self.send_sock = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_RAW)
