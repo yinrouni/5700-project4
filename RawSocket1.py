@@ -95,7 +95,7 @@ class RawSocket:
                          tcp_checksum,
                          urgent_pointer)
         tcp_packet_length = len(tcp_dummy) + len(data)
-        pseudo_header = pack('!4s4sBBH', SRC_ADDR, DEST_ADDR,
+        pseudo_header = pack('!4s4sBBH', self.SRC_ADDR, self.DEST_ADDR,
                              0, socket.IPPROTO_TCP, tcp_packet_length)
         pseudo_packet = pseudo_header + tcp_dummy + bytes(data, 'utf-8')
         tcp_checksum = calculate_checksum(pseudo_packet)
