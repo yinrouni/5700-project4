@@ -228,7 +228,7 @@ class RawSocket:
         # receive SYN_ACK
         # TODO: retry and timeout
         while True:
-            recv_packet = self.rcv_socket.recv(65565)
+            recv_packet = self.rcv_socket.recv(65536)
             try:
                 ip_header, ip_data = self.unpackIP(recv_packet)
             except ValueError:
@@ -402,7 +402,7 @@ class RawSocket:
         now = start
 
         while now - start <= RESEND_THRESHOLD:
-            recv_packet = self.rcv_socket.recv(65565)
+            recv_packet = self.rcv_socket.recv(65536)
 
             try:
                 ip_header, ip_data = self.unpackIP(recv_packet)
