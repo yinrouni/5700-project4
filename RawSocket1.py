@@ -206,8 +206,12 @@ class RawSocket:
         st_time = time.process_time()
         tcp_headers = {}
         while ip_packet:
-            ip_headers, ip_data = self.unpack_ip_packet(ip_packet)
-            tcp_headers, tcp_data = self.unpack_tcp_packet(ip_data)
+            try:
+                ip_headers, ip_data = self.unpack_ip_packet(ip_packet)
+                tcp_headers, tcp_data = self.unpack_tcp_packet(ip_data)
+            except ValueError:
+                ip_packet = self.recv_sock.recv(65536)
+                continue
             # print("FLAGSSSS:::", tcp_headers['flags'])
             if tcp_headers['flags'] != 0x12:
                 ip_packet = self.recv_sock.recv(65536)

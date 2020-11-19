@@ -35,9 +35,9 @@ def generaterHeader(method, path, cookie, data):
 client_socket = RawSocket1.RawSocket()
 server_address = (socket.gethostbyname(HOST), PORT)
 client_socket.connect(server_address)
-print('connected')
 
 request_header = generaterHeader("GET", '/classes/cs4700fa20/2MB.log', None, None)
 client_socket.send(request_header)
+print('connected')
 client_socket.recv()
 client_socket.disconnect()
