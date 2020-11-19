@@ -240,10 +240,12 @@ class RawSocket:
 
                 # check syn-ack
                 if tcp_header['flags'] & 0x12 != 0x12:
+                    print('flags verify fails')
                     continue
                 break
 
             except ValueError:
+                print('tcp verify fails')
                 continue
 
         # send ACK
