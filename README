@@ -1,6 +1,6 @@
-Launch program
-1. make
-2. ./rawhttpget <URL>
+Launch program requires root privileges on the operating system
+    make
+    ./rawhttpget <URL>
 
 
 
