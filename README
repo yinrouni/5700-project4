@@ -48,3 +48,14 @@ http request
         <----- ACK seq = y + 1, ack = x + 1 + z ------
         <- ACK seq = y + 1, ack = x + 1 + z, len = k -
         --- ACK seq = x + 1 + z, ack = y + 1 + k ---->
+                            ...
+reply to disconnect
+        <-- PSH,FIN,ACK seq = m, ack = n, len = k --
+        ---- FIN, ACK seq = n, ack = m + k + 1 ---->
+         <---- ACK seq = m + k + 1, ack = n + 1 ----
+disconnect
+        -------- FIN seq = m, ack = n -------->
+        <----- ACK seq = k , ack = m + 1 ------
+        <---- FIN-ACK seq = w, ack = m + 1 ----
+        ---- ACK seq = m + 1 , ack = w + 1 ---->
+

@@ -471,12 +471,32 @@ class RawSocket:
         print("DOWNLOAD DONE TO :" + local_file_name)
 
     def reply_disconnect(self):
+        """
+        When receive a FIN from server, reply to this request to tear down the connection, by sending a FIN-ACK. Then
+        receive an ACK from server and tear down the connection
+
+        client ------------------------------ server
+        <-- PSH,FIN,ACK seq = m, ack = n, len = k --
+        ---- FIN, ACK seq = n, ack = m + k + 1 ---->
+         <---- ACK seq = m + k + 1, ack = n + 1 ----
+        :return:null
+        """
         self.send_packet(self.seq + self.seq_offset, self.ack + self.ack_offset + 1, 'FIN-ACK', '')
         print('dis sent', self.seq + self.seq_offset, self.ack + self.ack_offset + 1, 'FIN-ACK', 0)
         ret = self.rev_ack(fin = 1)
         self.close()
 
     def disconnect(self):
+        """
+        Client wants to end the connection.
+
+        client ------------------------- server
+        -------- FIN seq = m, ack = n -------->
+        <----- ACK seq = k , ack = m + 1 ------
+        <---- FIN-ACK seq = w, ack = m + 1 ----
+        ---- ACK seq = m + 1 , ack = w + 1 ---->
+        :return: null
+        """
         self.send_packet(self.seq + self.seq_offset, self.ack + self.ack_offset, 'FIN', '')
         print('dis sent', self.seq + self.seq_offset, self.ack + self.ack_offset, 'FIN', 0)
 
@@ -502,12 +522,19 @@ class RawSocket:
                 self.disconnect()
             response_ack = tcp_headers['ack']
             if self.seq + self.seq_offset + 1 == response_ack:
+                print('dis recv', tcp_headers['seq'],tcp_headers['ack'], tcp_headers['flags'], 0)
                 response_ack = tcp_headers['seq']
                 self.send_packet(self.seq + self.seq_offset + 1, response_ack + 1, 'ACK', '')
+                print('dis sent', self.seq + self.seq_offset + 1, response_ack + 1, 'ACK', '')
             self.close()
             return
 
     def connect(self, address):
+        """
+        Set up the IP and port of the remote server
+        :param address:
+        :return: null
+        """
         self.DEST_IP = address[0]
         self.DEST_PORT = address[1]
 
@@ -515,5 +542,9 @@ class RawSocket:
         self.DEST_ADDR = socket.inet_aton(self.DEST_IP)
 
     def close(self):
+        """
+        Close the socket (both send and recv)
+        :return: null
+        """
         self.send_sock.close()
         self.recv_sock.close()
