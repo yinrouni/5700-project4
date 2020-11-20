@@ -342,8 +342,7 @@ class RawSocket:
         self.send_packet(self.seq + self.seq_offset, self.ack + self.ack_offset + 1, 'FIN-ACK', '')
         print('dis sent', self.seq + self.seq_offset, self.ack + self.ack_offset + 1, 'FIN-ACK', 0)
         ret = self.rev_ack(fin = 1)
-        self.send_sock.close()
-        self.recv_sock.close()
+        self.close()
 
     def disconnect(self):
         self.send_packet(self.seq + self.seq_offset, self.ack + self.ack_offset, 'FIN', '')
@@ -373,8 +372,7 @@ class RawSocket:
             if self.seq + self.seq_offset + 1 == response_ack:
                 response_ack = tcp_headers['seq']
                 self.send_packet(self.seq + self.seq_offset + 1, response_ack + 1, 'ACK', '')
-            self.send_sock.close()
-            self.recv_sock.close()
+            self.close()
             return
 
     def connect(self, address):
@@ -383,3 +381,7 @@ class RawSocket:
 
         self.SRC_ADDR = socket.inet_aton(self.SRC_IP)
         self.DEST_ADDR = socket.inet_aton(self.DEST_IP)
+
+    def close(self):
+        self.send_sock.close()
+        self.recv_sock.close()
