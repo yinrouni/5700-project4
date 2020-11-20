@@ -375,7 +375,7 @@ class RawSocket:
         rec_ack = tcp_headers['ack']
         rec_seq = tcp_headers['seq']
 
-        # ACK for FIN
+        # ACK for FIN/FIN-ACK
         if fin and rec_ack == self.seq + self.seq_offset + 1 and tcp_headers['flags'] == 16:
             self.last_ack_time = time.process_time()
             self.cwnd = min(self.cwnd, 999) + 1
@@ -449,9 +449,9 @@ class RawSocket:
                     headers, body = parse_header_body(tcp_response)
                     headers, body = parse_header_body(tcp_response)
                     if not headers.startswith(b'HTTP/1.1 200 OK'):
-                        self.reply_disconnect()
+                        self.disconnect()
                         os.system('rm -rf %s' % (file_name))
-                        sys.exit(1)
+                        return
                     if len(body) > 0:
                         local_file.write(body)
                         tcp_header_and_body_flag = 1
@@ -518,7 +518,7 @@ class RawSocket:
                     ip_packet = self.recv_sock.recv(65536)
                     ip_headers, ip_data = self.unpackIP(ip_packet)
                     tcp_headers, tcp_data = self.unpackTCP(ip_data)
-                    if tcp_headers['flags'] == 1: #FIN
+                    if tcp_headers['flags'] == 17: #FIN-ACK
                         break
                 except:
                     continue
@@ -532,8 +532,8 @@ class RawSocket:
                 response_ack = tcp_headers['seq']
                 self.send_packet(self.seq + self.seq_offset + 1, response_ack + 1, 'ACK', '')
                 print('dis sent', self.seq + self.seq_offset + 1, response_ack + 1, 'ACK', '')
-            self.close()
-            return
+                self.close()
+                return
 
     def connect(self, address):
         """
