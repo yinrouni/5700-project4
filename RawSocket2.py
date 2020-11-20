@@ -267,9 +267,15 @@ class RawSocket:
 
     def handshake(self):
         """
-        Set up the connect by handshaking
+        Set up the connect by handshaking. Start with sending a SYN to server. Unpack and validate the incoming
+        SYN-ACK packet. Send a ACK for it. Handshake done.
 
-        :return:
+        client ---------------------- server
+        ----------- SYN seq = x ----------->
+        <--S YN, ACK seq = y, ack = x + 1 --
+        --- ACK seq = x + 1, ack = y + 1 ---
+
+        :return: null
         """
         self.send_packet(self.seq, 0, 'SYN', '')
         print('handshake sent', self.seq, 0, 'SYN', 0)
@@ -296,7 +302,7 @@ class RawSocket:
                 self.ack = response_seq + 1
                 self.send_packet(self.seq, self.ack, 'ACK', '')
                 print('handshake sent', self.seq, self.ack, 'ACK', 0)
-                # print("hands shook well")
+                # print("handshake done")
                 break
             else:
                 # print("handshake fails")
