@@ -5,6 +5,7 @@ import sys
 import time
 from struct import *
 import subprocess
+import os
 
 # TCP flags
 def getTCPFlags(flag):
@@ -296,7 +297,7 @@ class RawSocket:
                 ip_packet = self.recv_sock.recv(65536)
                 continue
             response_ack = tcp_headers['ack']
-            print('handshake recv', tcp_headers['seq'], tcp_headers['ack'], 
+            print('handshake recv', tcp_headers['seq'], tcp_headers['ack'],
                     'SYN-ACK', 0)
 
             # verify the ack of incoming SYN-ACK with the SYN sent. If succeed, send a ACK for it, and handshake
@@ -343,7 +344,7 @@ class RawSocket:
             print('get sent', self.seq, self.ack, 'PSH-ACK', len(get_request_data))
 
         self.seq_offset += len(get_request_data)
-    
+
     def rev_ack(self, fin = 0):
         """
         Handle the incoming ACK for PSH-ACK when sending http request, and FIN when client wants to end the connection.
@@ -389,7 +390,7 @@ class RawSocket:
             self.last_ack_time = time.process_time()
             self.cwnd = min(self.cwnd, 999) + 1
             self.ack_offset += len(tcp_response)
-            
+
             print('get recv', tcp_headers['seq'], tcp_headers['ack'], 'ACK', len(tcp_response))
             return True
         return False
@@ -413,7 +414,7 @@ class RawSocket:
         # init the output file
         create_file(file_name)
         local_file_name = file_name
-        local_file = open(local_file_name, 'r+b') 
+        local_file = open(local_file_name, 'r+b')
 
         # Flag for the first packet containing http response header
         tcp_header_and_body_flag = 0
@@ -446,6 +447,11 @@ class RawSocket:
                 self.ack_offset += len(tcp_response)
                 if not tcp_header_and_body_flag:
                     headers, body = parse_header_body(tcp_response)
+                    headers, body = parse_header_body(tcp_response)
+                    if not headers.startswith(b'HTTP/1.1 200 OK'):
+                        self.reply_disconnect()
+                        os.system('rm -rf %s' % (file_name))
+                        sys.exit(1)
                     if len(body) > 0:
                         local_file.write(body)
                         tcp_header_and_body_flag = 1
