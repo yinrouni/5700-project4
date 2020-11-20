@@ -227,7 +227,7 @@ class RawSocket:
             print("NONEE")
 
 
-    def send(self, get_request_data):
+    def send(self, get_request_data,file_name):
         print("STARTED DOWNLOADING")
         self.handshake()
         # index = local_file_name.rfind("/")
@@ -236,15 +236,16 @@ class RawSocket:
         # else:
         #     local_file_name = local_file_name[index + 1:]
         # # print("WRITING DATA TO::::", local_file_name)
-        # temp_file = open(local_file_name, 'w+')
-        # temp_file.close()
+        local_file_name = file_name
+        temp_file = open(local_file_name, 'w+')
+        temp_file.close()
 
         self.send_packet(self.seq, self.ack, 0x18, get_request_data)
         self.seq_addr += len(get_request_data)
 
-    def recv(self):
+    def recv(self,file_name):
         # print("vacha")
-        local_file_name = 'file.txt'
+        local_file_name = file_name
         local_file = open(local_file_name, 'r+b') 
         tcp_header_and_body_flag = 0
         while True:
@@ -273,8 +274,11 @@ class RawSocket:
                 self.ack_addr += len(tcp_response)
                 if not tcp_header_and_body_flag:
                     headers, body = get_body_and_headers_from_tcp_data(tcp_response)
+                    print('431')
                     if len(body) > 0:
                         local_file.write(body)
+                        print('123')
+                        print(body)
                         tcp_header_and_body_flag = 1
                 else:
                     local_file.write(tcp_response)

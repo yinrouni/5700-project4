@@ -1,5 +1,7 @@
 import RawSocket1
 import socket
+import sys
+from urllib.parse import urlparse
 
 HOST = 'david.choffnes.com'  # Server hostname or IP address
 PORT = 80  # Port
@@ -20,7 +22,7 @@ def generaterHeader(method, path, cookie, data):
         prefix = "%s %s HTTP/1.1\r\nHost: %s\r\nContent-Type: application/x-www-form-urlencoded" \
                  "\r\nContent-Length: %s\r\n" % (method, path, HOST, len(data))
     else:
-        prefix = "%s %s HTTP/1.1\r\nHost: %s\r\n" % (method, path, HOST)
+        prefix = "%s %s HTTP/1.1\r\nHost: %s\r\nConnection: keep-alive\r\n" % (method, path, HOST)
 
     if cookie and data:
         return ("%sCookie: %s\r\n\r\n%s" % (prefix, cookie, data))
@@ -32,12 +34,41 @@ def generaterHeader(method, path, cookie, data):
 
     return ("%s\r\n" % prefix)
 
+def getHostAndPath(url):
+    temp = str(url)
+    parsed = urlparse(url)
+    host = parsed.netloc
+    path = parsed.path
+    return host,path
+
+
+args = sys.argv
+
+if len(args) <= 1:
+    exit()
+
+url = args[1]
+
+if 'https://' in url:
+    print('This program does not support HTTPS')
+    exit()
+
+HOST, path = getHostAndPath(url)
+print(HOST)
+print(path)
+if not path or path == '/':
+    path = '/'
+    file_name = 'index.html'
+else:
+    file_name = path.split('/')[-1]
+
+print(file_name)
 client_socket = RawSocket1.RawSocket()
 server_address = (socket.gethostbyname(HOST), PORT)
 client_socket.connect(server_address)
 
-request_header = generaterHeader("GET", '/classes/cs4700fa20/2MB.log', None, None)
-client_socket.send(request_header)
+request_header = generaterHeader("GET", path, None, None)
+client_socket.send(request_header,file_name)
 print('connected')
-client_socket.recv()
+client_socket.recv(file_name)
 client_socket.disconnect()
