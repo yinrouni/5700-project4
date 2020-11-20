@@ -8,6 +8,12 @@ import subprocess
 
 # TCP flags
 def getTCPFlags(flag):
+    """
+    generate TCP flags using types of them
+    :param flag:  name of flag, e.g. SYN, SYN-ACK
+    :return
+    the corresponding flag as a int
+    """
     tcp_fin = 0
     tcp_syn = 0
     tcp_rst = 0
@@ -32,12 +38,23 @@ def getTCPFlags(flag):
     return tcp_flags
 
 def parse_header_body(tcp_data):
+    """
+    Split the header and body in the http/GET response by \r\n\r\n
+    :param tcp_data: http/GET response in byte
+    :return: header, body
+    """
     body = tcp_data.split(bytes('\r\n\r\n', 'utf-8'), 1)
     if len(body) == 1:
         return body[0], ''
     return body[0], body[1]
 
+
 def calculate_checksum(msg):
+    """
+    Calculate the checksum using the given header in byte
+    :param msg: the given IP or pseudo header in byte
+    :return: the calculated checksum
+    """
     s = 0
 
     # loop taking 2 characters at a time
@@ -56,35 +73,63 @@ def calculate_checksum(msg):
 
     return s
 
+def create_file(file_name):
+    """
+    Create the file used for the response for the http/GET
+    :param file_name: the name of file
+    """
+    local_file_name = file_name
+    temp_file = open(local_file_name, 'w+')
+    temp_file.close()
+
 PACK_ID = random.randint(15000, 65535)
 TCP_WINDOW = 2048
 SOCK_PROTOTYPE = socket.IPPROTO_TCP
 TIME_OUT = 60
 
+
 class RawSocket:
+    """
+    This is socket used to send and recv http/GET via TCP/IP. It provides following methods for users:
+    connect(address_tuple): connect local host and remote server.
+    send(request): send a http/GET request, and the name of file for the outpu
+    recv(filename): recv the response from the http/GET sent before, and save in the file named filename
+    close(): close the socket
+    """
 
     def __init__(self):
+        """
+        Initialize the socket using essential settings
+        """
+
+        # the base seq and ack number in tcp, and offset used to help the change of seq and ack
         self.seq = random.randint(0, 2 ** 32 - 1)
         self.ack = 0
+        self.seq_offset = 0
+        self.ack_offset = 0
+
+        self.cwnd = 1
 
         self.DEST_IP = ''
         self.DEST_PORT = 80
-        self.cwnd = 1
-
+        # API to get IP of local machine
         self.SRC_IP = subprocess.getoutput("hostname -I")
         self.SRC_PORT = random.randint(1024, 65535)
-
         self.SRC_ADDR = ''
         self.DEST_ADDR = ''
-        self.seq_offset = 0
-        self.ack_offset = 0
+
         self.send_sock = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_RAW)
         self.recv_sock = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_TCP)
 
         self.last_ack_time = time.process_time()
 
-    # generated an IP header
     def createIPHeader(self, payload_length):
+        """
+        generated an IP header by setting up the essential fields in the header. Generate temp IP header using 0 as
+        checksum,then replace the checksum calculated by it and repack the returned IP header
+        :param payload_length: the length of the payload in the IP header
+        :return: the packed IP header
+        """
         ip_version = 4
         ip_header_length = 5
         packet_id = PACK_ID
@@ -106,6 +151,15 @@ class RawSocket:
         return ip_header
 
     def createTCPPacket(self, seq_no, ack_no, flags, data):
+        """
+        generated an TCP header by setting up the essential fields in the header. Generate pseudo header using 0 as
+        checksum,then replace the checksum calculated by it and repack the returned TCP header
+        :param seq_no: seq of the packet
+        :param ack_no: ack of the packet
+        :param flags: value of the flag
+        :param data: the payload
+        :return: packed TCP header
+        """
 
         urgent_pointer = 0
         tcp_checksum = 0
@@ -126,13 +180,28 @@ class RawSocket:
         return tcp_packet
 
     def send_packet(self, seq, ack, flags, data):
+        """
+        Generate a packet (packet = ip_header + tcp_header + user_data) using the created IP and TCP header. Send the
+        packet to the remote server
+        :param seq: seq in the TCP header
+        :param ack: ack in the TCP header
+        :param flags: value of flag in the TCP header
+        :param data: user data
+        :return: null
+        """
 
         packet = self.createIPHeader(len(data)) + self.createTCPPacket(seq, ack, getTCPFlags(flags), data) + bytes(
             data, 'utf-8')
         self.send_sock.sendto(packet, (self.DEST_IP, 0))
 
-    # unpacks the Transport layer packet and  performs checks
     def unpackTCP(self,tcp_packet):
+        """
+        Unpacks incoming TCP packet and  performs validations. Its destination port should be the port if the local
+        machine,
+        and validate the checksum.
+        :param tcp_packet: the tcp packted to be unpacked
+        :return: tcp headers and user data in it
+        """
         tcp_header_values = unpack('!HHLLBBH', tcp_packet[0:16]) + \
                             unpack('H', tcp_packet[16:18]) + \
                             unpack('!H', tcp_packet[18:20])
@@ -141,7 +210,6 @@ class RawSocket:
         tcp_headers = dict(zip(tcp_header_keys, tcp_header_values))
 
         if tcp_headers['dest'] != self.SRC_PORT:
-            # print("TCP destination port != SRC_PORT!!")
             raise ValueError('TCP: invalid port')
 
         offset = tcp_headers['off_res'] >> 4
@@ -172,8 +240,13 @@ class RawSocket:
             raise ValueError
         return tcp_headers, tcp_data
 
-    # unpacks the transport layer packet and performs checks
     def unpackIP(self, ip_packet):
+        """
+        Unpacks the incoming IP packet and performs validations. Its destination address should be the address if the
+        local machine,and validate the protocol type and checksum.
+        :param ip_packet: the incoming IP packet
+        :return: IP headers and tcp packets
+        """
         ip_header_values = unpack('!BBHHHBBH4s4s', ip_packet[:20])
         tcp_packet = ip_packet[20:]
         # print(ip_header_values)
@@ -182,7 +255,6 @@ class RawSocket:
                           'src', 'dest']
         ip_headers = dict(zip(ip_header_keys, ip_header_values))
 
-        # print("tcp data",tcp_packet)
         if ip_headers['dest'] != self.SRC_ADDR:
             raise ValueError('IP: invalid addr')
 
@@ -193,6 +265,11 @@ class RawSocket:
         return ip_headers, tcp_packet
 
     def handshake(self):
+        """
+        Set up the connect by handshaking
+
+        :return:
+        """
         self.send_packet(self.seq, 0, 'SYN', '')
         print('handshake sent', self.seq, 0, 'SYN', 0)
         ip_packet = self.recv_sock.recv(65536)
@@ -228,13 +305,7 @@ class RawSocket:
     def send(self, get_request_data):
         print("STARTED DOWNLOADING")
         self.handshake()
-        # index = local_file_name.rfind("/")
-        # if index == len(local_file_name) - 1 or index == -1:
-        #     local_file_name = 'index.html'
-        # else:
-        #     local_file_name = local_file_name[index + 1:]
-        # # print("WRITING DATA TO::::", local_file_name)
-        
+
         self.send_packet(self.seq, self.ack, 'PSH-ACK', get_request_data)
         print('get sent', self.seq, self.ack, 'PSH-ACK', len(get_request_data))
 
@@ -286,7 +357,7 @@ class RawSocket:
         return False
 
     def recv(self,file_name):
-
+        create_file(file_name)
         local_file_name = file_name
         local_file = open(local_file_name, 'r+b') 
         tcp_header_and_body_flag = 0
