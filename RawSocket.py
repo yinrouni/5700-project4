@@ -453,9 +453,8 @@ class RawSocket:
                     headers, body = parse_header_body(tcp_response)
                     if not headers.startswith(b'HTTP/1.1 200 OK'):
                         print('not 200 !!!!')
-                        ok = 0
-                        # self.reply_disconnect()
-                        # os.system('rm -rf %s' % (file_name))
+                        self.disconnect()
+                        os.system('rm -rf %s' % (file_name))
                         # sys.exit(1)
                     if len(body) > 0:
                         local_file.write(body)
@@ -479,11 +478,11 @@ class RawSocket:
 
        # self.disconnect()
         local_file.close()
-        if not ok:
-            print('no ok')
-            self.disconnect()
-            os.system('rm -rf %s' % (file_name))
-            print('rm output')
+        # if not ok:
+        #     print('no ok')
+        #     self.disconnect()
+        #     os.system('rm -rf %s' % (file_name))
+        #     print('rm output')
         print("DOWNLOAD DONE TO :" + local_file_name)
 
     def reply_disconnect(self):
@@ -535,6 +534,7 @@ class RawSocket:
             # keep the order of packets using seq and ack
             rec_ack = tcp_headers['ack']
             rec_seq = tcp_headers['seq']
+            print('--dis recv', rec_seq, rec_ack, tcp_headers['flags'], len(tcp_response))
             if self.seq + self.seq_offset + 1 == rec_ack and self.ack + self.ack_offset == rec_seq:
                 self.last_ack_time = time.process_time()
                 self.cwnd = min(self.cwnd, 999) + 1
