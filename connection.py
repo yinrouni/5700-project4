@@ -8,7 +8,7 @@ PORT = 80  # Port
 
 
 
-def generaterHeader(method, path, cookie, data):
+def generaterHeader(path):
     """The function that generate HTTP Header
     Args:
         method: HTTP Methods 'GET','POST'.
@@ -19,23 +19,11 @@ def generaterHeader(method, path, cookie, data):
         String return the encoded version of the HTTP Header
     """
 
-    if method == 'POST':
-        prefix = "%s %s HTTP/1.0\r\nHost: %s\r\nContent-Type: application/x-www-form-urlencoded" \
-                 "\r\nContent-Length: %s\r\n" % (method, path, HOST, len(data))
-    else:
-        prefix = "%s %s HTTP/1.0\r\nHost: %s\r\n" % (method, path, HOST) + \
+    request = "GET %s HTTP/1.0\r\nHost: %s\r\n" % (path, HOST) + \
             "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8\r\n" + \
-            "Connection: keep-alive\r\n"
+            "Connection: keep-alive\r\n\r\n"
 
-    if cookie and data:
-        return ("%sCookie: %s\r\n\r\n%s" % (prefix, cookie, data))
-    elif not data and cookie:
-        return ("%sCookie: %s\r\n\r\n" % (prefix, cookie))
-
-    elif data and not cookie:
-        return ("%s\r\n%s" % (prefix, data))
-
-    return ("%s\r\n" % prefix)
+    return request
 
 def getHostAndPath(url):
     temp = str(url)
