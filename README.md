@@ -1,4 +1,4 @@
-Launch program requires root privileges on the operating system
+# Launch program requires root privileges on the operating system
     make
     ./rawhttpget <URL>
 
@@ -20,7 +20,7 @@ IP header
    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
    |                    Options                    |    Padding    |
    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-IP features implemented:
+# IP features implemented:
 connect(): we implemented this function to set up the correct IP and port of the remote server
 createIPHeader(): we implemented this function to generated an IP header by setting up essential fields in the header,
                   and setting correct checksum in packet.
@@ -48,7 +48,7 @@ TCP header
    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
    |                             data                              |
    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-TCP features implemented:
+# TCP features implemented:
 createTCPPacket(): we implemented this function to generated an TCP header by setting up essential fields in the header,
                    and Generate pseudo header using 0 as checksum,then replace the checksum calculated by it and repack the returned 
                    TCP header.
@@ -74,7 +74,7 @@ recv():      we implement this function to Receive the response of the request. 
 disconnect() and reply_disconnect(): handle the connection teardown
 
  
-
+# process of handle sequence and acknowledgement numbers
 packet = IP header + TCP header + data
 
 Handshake
