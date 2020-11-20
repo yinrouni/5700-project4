@@ -57,9 +57,7 @@ if 'https://' in url:
 HOST, path = getHostAndPath(url)
 file_name = getFileName(path)
 
-local_file_name = file_name
-temp_file = open(local_file_name, 'w+')
-temp_file.close()
+
 
 
 client_socket = RawSocket2.RawSocket()
