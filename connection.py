@@ -1,4 +1,4 @@
-import RawSocket2
+import RawSocket
 import socket
 import sys
 from urllib.parse import urlparse
