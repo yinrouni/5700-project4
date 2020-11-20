@@ -327,12 +327,12 @@ class RawSocket:
                 print('get recv', rec_seq, rec_ack, tcp_headers['flags'], len(tcp_response))
             else:
                 self.cwnd = 1
-            if tcp_headers['flags'] == 17: #FIN-ACK
+            if tcp_headers['flags'] % 2== 1: #FIN from server
                 self.reply_disconnect()
                 break
             else:
                 self.send_packet(self.seq + self.seq_offset, self.ack + self.ack_offset, 'ACK', '')
-            print('get sent', self.seq + self.seq_offset, self.ack + self.ack_offset, 'ACK', '')
+                print('get sent', self.seq + self.seq_offset, self.ack + self.ack_offset, 'ACK', '')
 
        # self.disconnect()
         local_file.close()
