@@ -1,4 +1,4 @@
-import RawSocket1
+import RawSocket2
 import socket
 
 HOST = 'david.choffnes.com'  # Server hostname or IP address
@@ -32,11 +32,11 @@ def generaterHeader(method, path, cookie, data):
 
     return ("%s\r\n" % prefix)
 
-client_socket = RawSocket1.RawSocket()
+client_socket = RawSocket2.RawSocket()
 server_address = (socket.gethostbyname(HOST), PORT)
 client_socket.connect(server_address)
 
-request_header = generaterHeader("GET", '/classes/cs4700fa20/2MB.log', None, None)
+request_header = generaterHeader("GET", '/classes/cs4700fa20/project4.php', None, None)
 client_socket.send(request_header)
 print('connected')
 client_socket.recv()
