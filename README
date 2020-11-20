@@ -41,7 +41,7 @@ packet = IP header + TCP header + data
 Handshake
         client ---------------------- server
         ----------- SYN seq = x ----------->
-        <--S YN, ACK seq = y, ack = x + 1 --
+        <--SYN, ACK seq = y, ack = x + 1 --
         --- ACK seq = x + 1, ack = y + 1 ---
 http request
         - PSH-ACK seq = x + 1, ack = y + 1, len = z ->
