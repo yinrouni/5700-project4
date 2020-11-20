@@ -6,11 +6,14 @@ import time
 from struct import *
 import subprocess
 
-RESEND_THRESHOLD = 60
-
-
 # TCP flags
 def getTCPFlags(flag):
+    """
+    generate TCP flags using types of them
+    :param flag:  name of flag, e.g. SYN, SYN-ACK
+    :return
+    the corresponding flag as a int
+    """
     tcp_fin = 0
     tcp_syn = 0
     tcp_rst = 0
@@ -34,9 +37,24 @@ def getTCPFlags(flag):
     tcp_flags = tcp_fin + (tcp_syn << 1) + (tcp_rst << 2) + (tcp_psh << 3) + (tcp_ack << 4) + (tcp_urg << 5)
     return tcp_flags
 
+def parse_header_body(tcp_data):
+    """
+    Split the header and body in the http/GET response by \r\n\r\n
+    :param tcp_data: http/GET response in byte
+    :return: header, body
+    """
+    body = tcp_data.split(bytes('\r\n\r\n', 'utf-8'), 1)
+    if len(body) == 1:
+        return body[0], ''
+    return body[0], body[1]
 
-# checksum functions needed for calculation checksum
-def checksum(msg):
+
+def calculate_checksum(msg):
+    """
+    Calculate the checksum using the given header in byte
+    :param msg: the given IP or pseudo header in byte
+    :return: the calculated checksum
+    """
     s = 0
 
     # loop taking 2 characters at a time
@@ -55,435 +73,478 @@ def checksum(msg):
 
     return s
 
+def create_file(file_name):
+    """
+    Create the file used for the response for the http/GET
+    :param file_name: the name of file
+    """
+    local_file_name = file_name
+    temp_file = open(local_file_name, 'w+')
+    temp_file.close()
 
-def setFileName(url):
-    filename = ''
-    slash_index = url.rfind('/')
-    if slash_index == 6 or slash_index == len(url) - 1:
-        filename = "index.html"
-    else:
-        filename = url[slash_index + 1:]
-
-    return filename
-
-
-def ip_verify_checksum(headerVals):
-    chcksm = headerVals[7]
-    ipHeader = pack('!BBHHHBBH4s4s', headerVals[0], headerVals[1], headerVals[2], headerVals[3], headerVals[4],
-                    headerVals[5], headerVals[6], 0, headerVals[8], headerVals[9])
-    calculatedChecksum = checksum(ipHeader)
-    return calculatedChecksum == chcksm
-
-
-def tcp_verify_checksum(pseudo_header, tcp_header_vals, options, tcp_data):
-    chcksm = tcp_header_vals[7]
-    headerAndData = pseudo_header + \
-                    pack('!HHLLBBHHH', tcp_header_vals[0], tcp_header_vals[1], tcp_header_vals[2],
-                         tcp_header_vals[3], tcp_header_vals[4], tcp_header_vals[5], tcp_header_vals[6], 0,
-                         tcp_header_vals[8]) + \
-                    options + tcp_data
-    calculatedChecksum = checksum(headerAndData)
-    return calculatedChecksum == chcksm
+PACK_ID = random.randint(15000, 65535)
+TCP_WINDOW = 2048
+SOCK_PROTOTYPE = socket.IPPROTO_TCP
+TIME_OUT = 60
 
 
 class RawSocket:
+    """
+    This is socket used to send and recv http/GET via TCP/IP. It provides following methods for users:
+    connect(address_tuple): connect local host and remote server.
+    send(request): send a http/GET request, and the name of file for the outpu
+    recv(filename): recv the response from the http/GET sent before, and save in the file named filename
+    close(): close the socket
+    """
 
     def __init__(self):
-        self.source_ip = ''
-        self.dest_ip = ''
-        self.source_port = random.randint(1024, 65530)
-        self.dest_port = ''
-        self.seq_number = random.randint(0, math.pow(2, 31))
-        self.seq_ack_num = 0
+        """
+        Initialize the socket using essential settings
+        """
+
+        # the base seq and ack number in tcp, and offset used to help the change of seq and ack
+        self.seq = random.randint(0, 2 ** 32 - 1)
+        self.ack = 0
         self.seq_offset = 0
         self.ack_offset = 0
+
         self.cwnd = 1
+
+        self.DEST_IP = ''
+        self.DEST_PORT = 80
+        # API to get IP of local machine
+        self.SRC_IP = subprocess.getoutput("hostname -I")
+        self.SRC_PORT = random.randint(1024, 65535)
+        self.SRC_ADDR = ''
+        self.DEST_ADDR = ''
+
+        self.send_sock = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_RAW)
+        self.recv_sock = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_TCP)
+
         self.last_ack_time = time.process_time()
 
-        # create a raw socket
-        try:
-            self.socket = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_RAW)
-        except socket.error as msg:
-            print('Send socket could not be created. Error Code : ' + str(msg[0]) + ' Message ' + msg[1])
-            sys.exit()
+    def createIPHeader(self, payload_length):
+        """
+        generated an IP header by setting up the essential fields in the header. Generate temp IP header using 0 as
+        checksum,then replace the checksum calculated by it and repack the returned IP header
+        :param payload_length: the length of the payload in the IP header
+        :return: the packed IP header
+        """
+        ip_version = 4
+        ip_header_length = 5
+        packet_id = PACK_ID
+        first_byte = ip_header_length + (ip_version << 4)
+        service_type = 0
+        total_length = payload_length + 20
+        identification = packet_id
+        flags = 0
+        fragment_offset = 0
+        fragment_bytes = fragment_offset + (flags << 3)
+        ttl = 255
+        protocol = socket.IPPROTO_TCP
 
-        try:
-            self.rcv_socket = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_TCP)
-        except socket.error as msg:
-            print('Receive socket could not be created. Error Code : ' + str(msg[0]) + ' Message ' + msg[1])
-            sys.exit()
-
-    # IP header
-    def getIPHeader(self):
-        ip_ihl = 5
-        ip_ver = 4
-        ip_tos = 0
-        ip_tot_len = 0  # kernel will fill the correct total length
-        ip_id = 54321  # Id of this packet
-        ip_frag_off = 0
-        ip_ttl = 255
-        ip_proto = socket.IPPROTO_TCP
-        ip_check = 0  # kernel will fill the correct checksum
-        ip_saddr = socket.inet_aton(self.source_ip)  # Spoof the source ip address if you want to
-        ip_daddr = socket.inet_aton(self.dest_ip)
-
-        ip_ihl_ver = (ip_ver << 4) + ip_ihl
-
-        ip_header = pack('!BBHHHBBH4s4s', ip_ihl_ver, ip_tos, ip_tot_len, ip_id, ip_frag_off, ip_ttl, ip_proto,
-                         ip_check, ip_saddr, ip_daddr)
-
+        ip_header = pack('!BBHHHBBH4s4s', first_byte, service_type, total_length, identification, fragment_bytes,
+                         ttl, protocol, 0, self.SRC_ADDR, self.DEST_ADDR)
+        header_checksum = calculate_checksum(ip_header)
+        ip_header = pack('!BBHHHBBH4s4s', first_byte, service_type, total_length, identification, fragment_bytes,
+                         ttl, protocol, header_checksum, self.SRC_ADDR, self.DEST_ADDR)
         return ip_header
 
-    # TCP header
-    def getTCPHeader(self, tcp_seq, tcp_ack_seq, user_data, flag):
-        # tcp header fields
-        tcp_source = self.source_port  # source port
-        tcp_dest = self.dest_port  # destination port
+    def createTCPPacket(self, seq_no, ack_no, flags, data):
+        """
+        generated an TCP header by setting up the essential fields in the header. Generate pseudo header using 0 as
+        checksum,then replace the checksum calculated by it and repack the returned TCP header
+        :param seq_no: seq of the packet
+        :param ack_no: ack of the packet
+        :param flags: value of the flag
+        :param data: the payload
+        :return: packed TCP header
+        """
 
-        tcp_doff = 5  # 4 bit field, size of tcp header, 5 * 4 = 20 bytes
+        urgent_pointer = 0
+        tcp_checksum = 0
+        window = TCP_WINDOW
+        tcp_header_length = 5
+        offset_reserve = (tcp_header_length << 4) + 0
+        tcp_dummy = pack('!HHLLBBHHH', self.SRC_PORT, self.DEST_PORT, seq_no, ack_no, offset_reserve, flags, window,
+                         tcp_checksum,
+                         urgent_pointer)
+        tcp_packet_length = len(tcp_dummy) + len(data)
+        pseudo_header = pack('!4s4sBBH', self.SRC_ADDR, self.DEST_ADDR,
+                             0, socket.IPPROTO_TCP, tcp_packet_length)
+        pseudo_packet = pseudo_header + tcp_dummy + bytes(data, 'utf-8')
+        tcp_checksum = calculate_checksum(pseudo_packet)
+        tcp_packet = pack('!HHLLBBH', self.SRC_PORT, self.DEST_PORT, seq_no, ack_no, offset_reserve, flags,
+                          window) + pack('H',tcp_checksum) + pack('!H', urgent_pointer)
 
-        tcp_window = socket.htons(8190)  # maximum allowed window size
-        tcp_offset_res = (tcp_doff << 4) + 0
-        tcp_check = 0
-        tcp_urg_ptr = 0
+        return tcp_packet
 
-        # tcp flags
-        tcp_flags = getTCPFlags(flag)
+    def send_packet(self, seq, ack, flags, data):
+        """
+        Generate a packet (packet = ip_header + tcp_header + user_data) using the created IP and TCP header. Send the
+        packet to the remote server
+        :param seq: seq in the TCP header
+        :param ack: ack in the TCP header
+        :param flags: value of flag in the TCP header
+        :param data: user data
+        :return: null
+        """
 
-        # the ! in the pack format string means network order
-        tcp_header = pack('!HHLLBBHHH', tcp_source, tcp_dest, tcp_seq, tcp_ack_seq, tcp_offset_res, tcp_flags,
-                          tcp_window, tcp_check, tcp_urg_ptr)
+        packet = self.createIPHeader(len(data)) + self.createTCPPacket(seq, ack, getTCPFlags(flags), data) + bytes(
+            data, 'utf-8')
+        self.send_sock.sendto(packet, (self.DEST_IP, 0))
 
-        tcp_check = self.checkPseudoHeader(tcp_header, user_data)
-        tcp_header = pack('!HHLLBBH', tcp_source, tcp_dest, tcp_seq, tcp_ack_seq, tcp_offset_res, tcp_flags,
-                          tcp_window) + pack('H', tcp_check) + pack('!H', tcp_urg_ptr)
+    def unpackTCP(self,tcp_packet):
+        """
+        Unpacks incoming TCP packet and  performs validations. Its destination port should be the port if the local
+        machine,
+        and validate the checksum.
+        :param tcp_packet: the tcp packted to be unpacked
+        :return: tcp headers and user data in it
+        """
+        tcp_header_values = unpack('!HHLLBBH', tcp_packet[0:16]) + \
+                            unpack('H', tcp_packet[16:18]) + \
+                            unpack('!H', tcp_packet[18:20])
 
-        return tcp_header
-
-    # pseudo header for checksum
-    def checkPseudoHeader(self, tcp_header, user_data):
-        source_address = socket.inet_aton(self.source_ip)
-        dest_address = socket.inet_aton(self.dest_ip)
-        placeholder = 0
-        protocol = socket.IPPROTO_TCP
-        tcp_length = len(tcp_header) + len(user_data)
-
-        psh = pack('!4s4sBBH', source_address, dest_address, placeholder, protocol, tcp_length)
-
-        psh = psh + tcp_header + user_data.encode()
-
-        tcp_check = checksum(psh)
-
-        return tcp_check
-
-    # unpack packet to get ip header and verification
-    def unpackIP(self, packet):
-        ip_header_keys = ['ver_ihl', 'tos', 'tot_len', 'id', 'frag_off', 'ttl', 'proto', 'check', 'src', 'dest']
-        ip_header_vals = unpack('!BBHHHBB', packet[0:10]) + \
-                         unpack('H', packet[10:12]) + \
-                         unpack('!4s4s', packet[12:20])
-        ip_headers = dict(zip(ip_header_keys, ip_header_vals))
-
-        version = ip_headers['ver_ihl'] >> 4
-        if version != 4:
-            print('not ipv4')
-            raise ValueError("not IPv4")
-        ihl = ip_headers['ver_ihl'] & 0x0F
-
-        # check that this is the destination
-        if ip_headers['dest'] != socket.inet_aton(self.source_ip):
-            print(ip_headers['dest'], self.source_ip)
-            print("invalid destination IP address")
-            raise ValueError("invalid destination IP address")
-
-        # check that is tcp packet
-        if ip_headers['proto'] != 0x06:
-            print('not tcp packet')
-            raise ValueError("Not TCP packet")
-
-        # get the data from the ip packet
-        ip_data = packet[4 * ihl:]
-
-        if ip_verify_checksum(ip_header_vals):
-            return ip_headers, ip_data
-        else:
-            print('ip checksum has failed. replicate TCP ACK behavior')
-            raise ValueError("invalid IP checksum")
-
-    def sendPacket(self, seq_number, seq_ack_num, user_data, flags):
-        ip_header = self.getIPHeader()
-        tcp_header = self.getTCPHeader(seq_number, seq_ack_num, user_data, flags)
-
-        packet = ip_header + tcp_header + user_data.encode()
-        self.socket.sendto(packet, (self.dest_ip, self.dest_port))
-
-    # handshake
-    def handshake(self):
-
-        # send first SYN
-        self.sendPacket(self.seq_number, self.seq_ack_num, '', 'SYN')
-        start = time.process_time()
-        print('sent SYN at ' + str(start))
-
-        # receive SYN_ACK
-        # TODO: retry and timeout
-        while True:
-            recv_packet = self.rcv_socket.recv(65565)
-            try:
-                ip_header, ip_data = self.unpackIP(recv_packet)
-            except ValueError:
-                print('ip verify fails')
-                continue
-            try:
-                tcp_header, tcp_data = self.unpackTCP(ip_data)
-
-                # check syn-ack
-                if tcp_header['flags'] & 0x12 != 0x12:
-                    print('flags verify fails')
-                    continue
-                break
-
-            except ValueError:
-                print('tcp verify fails')
-                continue
-
-        # send ACK
-        recv_ack = tcp_header['ack']
-        if self.seq_number + 1 == recv_ack:
-            self.seq_number += 1
-            self.seq_ack_num = tcp_header['seq'] + 1
-
-            self.sendPacket(self.seq_number, self.seq_ack_num, '', 'ACK')
-        else:
-            print('handshake fail')
-
-    # connect
-    def connect(self, address_tuple):
-        hostname = address_tuple[0]
-        self.dest_port = address_tuple[1]
-        self.dest_ip = socket.gethostbyname(hostname)
-
-        # API to get IP of source machine
-        self.source_ip = subprocess.getoutput("hostname -I")
-
-        self.handshake()
-
-    #  disconnect
-
-    # send
-    def send(self, request):
-        self.sendPacket(self.seq_number, self.seq_ack_num, request, 'PSH-ACK')
-        # self.seq_number += len(request)
-        self.seq_offset += len(request)
-
-    def get_body_and_headers_from_tcp_data(self, tcp_data):
-        body = tcp_data.split(bytes('\r\n\r\n', 'utf-8'), 1)
-        if len(body) == 1:
-            return body[0], ''
-        return body[0], body[1]
-
-    # get Response
-    def recv(self):
-        f = open('demo.txt', 'r+b')
-        tcp_header_and_body_flag = 0
-        while True:
-            start_time = time.process_time()
-            now = start_time
-            while now - start_time < RESEND_THRESHOLD:
-                try:
-                    ip_packet = self.rcv_socket.recv(65565)
-                    ip_header, ip_data = self.unpackIP(ip_packet)
-                    tcp_header, tcp_response = self.unpackTCP(ip_data)
-                    break
-                except ValueError:
-                    now = time.process_time()
-                    continue
-            if time.process_time() - self.last_ack_time > 3 * RESEND_THRESHOLD:
-                self.teardown()
-                return
-
-            if now - start_time > RESEND_THRESHOLD:
-                self.cwnd = 1
-            recv_ack = tcp_header['ack']
-            recv_seq = tcp_header['seq']
-            if recv_ack == self.seq_number + self.seq_offset and recv_seq == self.seq_ack_num + self.ack_offset:
-
-                self.last_ack_time = time.process_time()
-                self.cwnd = min(self.cwnd, 999) + 1
-                self.ack_offset += len(tcp_response)
-                if not tcp_header_and_body_flag:
-                    headers, body = self.get_body_and_headers_from_tcp_data(tcp_response)
-                    if len(body) > 0:
-                        f.write(body)
-                        tcp_header_and_body_flag = 1
-                else:
-                    f.write(tcp_response)
-            else:
-                self.cwnd = 1
-            self.sendPacket(self.seq_number + self.seq_offset, self.seq_ack_num + self.ack_offset, '', 'ACK')
-            if tcp_header['flags'] % 2 == 1:
-                break
-
-        # head_body_flag = 0
-        #
-        # done = False
-        # while not done:
-        #     start = time.process_time()
-        #     now = start
-        #     while now - start < RESEND_THRESHOLD:
-        #         recv_packet = self.rcv_socket.recv(65565)
-        #
-        #         try:
-        #             ip_header, ip_data = self.unpackIP(recv_packet)
-        #         except ValueError:
-        #             now = time.process_time()
-        #             continue
-        #
-        #         try:
-        #             tcp_header, tcp_data = self.unpackTCP(ip_data)
-        #             break
-        #         except ValueError:
-        #             now = time.process_time()
-        #             continue
-        #
-        #     if time.process_time() - self.last_ack_time > 3 * RESEND_THRESHOLD:
-        #         # TODO: tear down
-        #         self.teardown()
-        #         print('time to tear down connect')
-        #         return
-        #     if now - start > RESEND_THRESHOLD :
-        #         self.cwnd = 1
-        #
-        #     # # check tcp flags:
-        #     if tcp_header['flags'] & 0x01 > 0:
-        #         # fin: stop accepting resp and sending ack
-        #         done = True
-        #     #
-        #     # if tcp_header['flags'] & 0x10 == 0:
-        #     #     # no ack
-        #     #     break
-        #
-        #     recv_seq = tcp_header['seq']
-        #     recv_ack = tcp_header['ack']
-        #
-        #     if recv_ack == self.seq_number + self.seq_offset and recv_seq == self.seq_ack_num + self.ack_offset:
-        #         self.last_ack_time = time.process_time()
-        #         self.cwnd = min(999, self.cwnd) + 1
-        #
-        #         self.ack_offset += len(tcp_data)
-        #
-        #         if not head_body_flag:
-        #             # TODO: parse tcp response into header and body
-        #             f.write(tcp_data)
-        #
-        #         # if len(tcp_data) > 0:
-        #         #     # has resp
-        #         #     f.write(tcp_data)
-        #         else:
-        #             f.write(tcp_data)
-        #
-        #             # self.seq_ack_num += len(tcp_data)
-        #         # self.sendPacket(self.seq_number, self.seq_ack_num, ''.encode(), 'ACK')
-        #         # else:
-        #         #     continue
-        #     else:
-        #         self.cwnd = 1
-        #
-        #     # send ack
-        #     self.sendPacket(self.seq_number + self.seq_offset, self.seq_ack_num + self.ack_offset, '', 'ACK')
-
-        f.close()
-        # self.teardown()
-
-    def teardown(self):
-        self.sendPacket(self.seq_number + self.seq_offset, self.seq_ack_num + self.ack_offset, '', 'FIN')
-
-        start = time.process_time()
-        now = start
-
-        while now - start <= RESEND_THRESHOLD:
-            recv_packet = self.rcv_socket.recv(65565)
-
-            try:
-                ip_header, ip_data = self.unpackIP(recv_packet)
-            except ValueError:
-                continue
-
-            try:
-                tcp_header, tcp_data = self.unpackTCP(ip_data)
-                if tcp_header['flags'] % 2 == 1:  # if not fin
-                    break
-            except ValueError:
-                continue
-            now = time.process_time()
-
-        if now - start > RESEND_THRESHOLD:
-            #retry
-            self.teardown()
-
-        recv_ack = tcp_header['ack']
-        if recv_ack == self.seq_number + self.seq_offset+ 1:
-            recv_seq = tcp_header['seq']
-            self.sendPacket(self.seq_number + self.seq_offset+ 1, recv_seq + 1, '', 'ACK')
-        self.close()
-        return
-
-    def close(self):
-        self.socket.close()
-        self.rcv_socket.close()
-
-    def unpackTCP(self, ip_data):
         tcp_header_keys = ['src', 'dest', 'seq', 'ack', 'off_res', 'flags', 'awnd', 'chksm', 'urg']
-        tcp_header_vals = unpack('!HHLLBBH', ip_data[0:16]) + \
-                          unpack('H', ip_data[16:18]) + \
-                          unpack('!H', ip_data[18:20])
-        tcp_headers = dict(zip(tcp_header_keys, tcp_header_vals))
+        tcp_headers = dict(zip(tcp_header_keys, tcp_header_values))
 
-        # check for options
+        if tcp_headers['dest'] != self.SRC_PORT:
+            raise ValueError('TCP: invalid port')
+
         offset = tcp_headers['off_res'] >> 4
-        options = b''
+
+        options = ''.encode()
         if offset > 5:
-            options = ip_data[20:4 * offset]
-            print('options: ' + str(options))
+            options = tcp_packet[20:4 * offset]
 
-        tcp_data = ip_data[4 * offset:]
+        tcp_data = tcp_packet[4 * offset:]
 
-        if tcp_headers['dest'] != self.source_port:
-            raise ValueError("incorrect destination port")
-
-        source_address = socket.inet_aton(self.source_ip)
-        dest_address = socket.inet_aton(self.dest_ip)
-        placeholder = 0
-        protocol = socket.IPPROTO_TCP
-
-        pseudo_header = pack('!4s4sBBH', dest_address, source_address, placeholder, protocol, len(ip_data))
-
-        c_sum = tcp_header_vals[7]
-        header1_data = pseudo_header + pack('!HHLLBBHHH',
-                                      tcp_header_vals[0],
-                                      tcp_header_vals[1],
-                                      tcp_header_vals[2],
-                                      tcp_header_vals[3],
-                                      tcp_header_vals[4],
-                                      tcp_header_vals[5],
-                                      tcp_header_vals[6],
+        header1 = pack('!4s4sBBH', self.DEST_ADDR, self.SRC_ADDR, 0, SOCK_PROTOTYPE, len(tcp_packet))
+        c_sum = tcp_header_values[7]
+        header1_data = header1 + pack('!HHLLBBHHH',
+                                      tcp_header_values[0],
+                                      tcp_header_values[1],
+                                      tcp_header_values[2],
+                                      tcp_header_values[3],
+                                      tcp_header_values[4],
+                                      tcp_header_values[5],
+                                      tcp_header_values[6],
                                       0,
-                                      tcp_header_vals[8]) \
+                                      tcp_header_values[8]) \
                        + options + tcp_data
-        actual_c_sum = checksum(header1_data)
+        actual_c_sum = calculate_checksum(header1_data)
 
         if c_sum != actual_c_sum:
             print("Invalid packet")
             raise ValueError
         return tcp_headers, tcp_data
 
-        # if tcp_verify_checksum(pseudo_header, tcp_header_vals, options, tcp_data):
-        #     return tcp_headers, tcp_data
-        # else:
-        #     print('tcp checksum has failed. replicate TCP ACK behavior')
-        #     raise ValueError("incorrect TCP checksum")
+    def unpackIP(self, ip_packet):
+        """
+        Unpacks the incoming IP packet and performs validations. Its destination address should be the address if the
+        local machine,and validate the protocol type and checksum.
+        :param ip_packet: the incoming IP packet
+        :return: IP headers and tcp packets
+        """
+        ip_header_values = unpack('!BBHHHBBH4s4s', ip_packet[:20])
+        tcp_packet = ip_packet[20:]
+        # print(ip_header_values)
+
+        ip_header_keys = ['ver_ihl', 'service_type', 'total_length', 'pkt_id', 'frag_off', 'ttl', 'proto', 'checksum',
+                          'src', 'dest']
+        ip_headers = dict(zip(ip_header_keys, ip_header_values))
+
+        if ip_headers['dest'] != self.SRC_ADDR:
+            raise ValueError('IP: invalid addr')
+
+        if ip_headers['proto'] != SOCK_PROTOTYPE:
+            print("NOT TCP Protocol")
+            raise ValueError
+
+        return ip_headers, tcp_packet
+
+    def handshake(self):
+        """
+        Set up the connect by handshaking. Start with sending a SYN to server. Unpack and validate the incoming
+        SYN-ACK packet. Send a ACK for it. Handshake done.
+
+        client ---------------------- server
+        ----------- SYN seq = x ----------->
+        <-- SYN, ACK seq = y, ack = x + 1 --
+        --- ACK seq = x + 1, ack = y + 1 --->
+
+        :return: null
+        """
+
+        # Send a SYN
+        self.send_packet(self.seq, 0, 'SYN', '')
+        print('handshake sent', self.seq, 0, 'SYN', 0)
+
+        # receive a SYN-ACK. if the incoming packet fails the verification and it's invalid, discard it and try to
+        # receive another.
+        ip_packet = self.recv_sock.recv(65536)
+        while ip_packet:
+            try:
+                ip_headers, ip_data = self.unpackIP(ip_packet)
+                tcp_headers, tcp_data = self.unpackTCP(ip_data)
+            except ValueError:
+                ip_packet = self.recv_sock.recv(65536)
+                continue
+
+            if tcp_headers['flags'] != 0x12:
+                ip_packet = self.recv_sock.recv(65536)
+                continue
+            response_ack = tcp_headers['ack']
+            print('handshake recv', tcp_headers['seq'], tcp_headers['ack'], 
+                    'SYN-ACK', 0)
+
+            # verify the ack of incoming SYN-ACK with the SYN sent. If succeed, send a ACK for it, and handshake
+            # done. otherwise, handshake fails.
+            if self.seq + 1 == response_ack:
+                self.seq = response_ack
+                response_seq = tcp_headers['seq']
+                self.ack = response_seq + 1
+                self.send_packet(self.seq, self.ack, 'ACK', '')
+                print('handshake sent', self.seq, self.ack, 'ACK', 0)
+                print("handshake done")
+                break
+            else:
+                print("handshake fails")
+                raise ValueError("handshake fails")
+
+
+    def send(self, get_request_data):
+        """
+        Send request after handshake. Unpack and validate the incoming ACK packet. If it fails validation,
+        resend the request.
+
+        client -------------------------------- server
+        - PSH-ACK seq = x + 1, ack = y + 1, len = z ->
+        <----- ACK seq = y + 1, ack = x + 1 + z ------
+
+        :param get_request_data: http request
+        :return: null
+        """
+
+        print("start to download")
+        while True:
+            try:
+                self.handshake()
+                break
+            except ValueError:
+                continue
+
+        self.send_packet(self.seq, self.ack, 'PSH-ACK', get_request_data)
+        print('get sent', self.seq, self.ack, 'PSH-ACK', len(get_request_data))
+
+        while self.rev_ack():
+            self.send_packet(self.seq, self.ack, 'PSH-ACK', get_request_data)
+            print('get sent', self.seq, self.ack, 'PSH-ACK', len(get_request_data))
+
+        self.seq_offset += len(get_request_data)
+    
+    def rev_ack(self, fin = 0):
+        """
+        Handle the incoming ACK for PSH-ACK when sending http request, and FIN when client wants to end the connection.
+        If there's valid ACK within 1 min, assume the sent packet is lost and retransmit. If it does not receive any
+        data for 3 min, client start to tear down the connection.
+        :param fin: flag for whether it should be a ACK for a FIN
+        :return: whether the incoming ACK is valid
+        """
+
+        start_time = time.process_time()
+        now = start_time
+        while now - start_time < TIME_OUT:
+            try:
+                ip_packet = self.recv_sock.recv(65536)
+                ip_headers, ip_data = self.unpackIP(ip_packet)
+                tcp_headers, tcp_response = self.unpackTCP(ip_data)
+                break
+            except ValueError:
+                now = time.process_time()
+                continue
+        if time.process_time() - self.last_ack_time > 3 * TIME_OUT:
+            self.disconnect()
+            return False
+
+        if now - start_time > TIME_OUT:
+            self.cwnd = 1
+            return False
+        rec_ack = tcp_headers['ack']
+        rec_seq = tcp_headers['seq']
+
+        # ACK for FIN
+        if fin and rec_ack == self.seq + self.seq_offset + 1 and tcp_headers['flags'] == 16:
+            self.last_ack_time = time.process_time()
+            self.cwnd = min(self.cwnd, 999) + 1
+            self.ack_offset += len(tcp_response)
+
+            print('dis recv', tcp_headers['seq'], tcp_headers['ack'], 'ACK', len(tcp_response))
+            return True
+
+        # ACK for PSH-ACK
+        if self.seq + self.seq_offset == rec_ack and self.ack + self.ack_offset == rec_seq\
+                and tcp_headers['flags'] == 16 and not fin:
+            self.last_ack_time = time.process_time()
+            self.cwnd = min(self.cwnd, 999) + 1
+            self.ack_offset += len(tcp_response)
+            
+            print('get recv', tcp_headers['seq'], tcp_headers['ack'], 'ACK', len(tcp_response))
+            return True
+        return False
+
+    def recv(self,file_name):
+        """
+        Receive the response of the request. Keep receiving ACK with content from server, and send back ACK for each
+        of them. If there's valid ACK within 1 min, assume the sent packet is lost and retransmit. If it does not
+        receive any data for 3 min, client start to tear down the connection. When receiving a packet marked FIN,
+        reply to the request from server to end the connection.
+
+        client -------------------------------- server
+        <- ACK seq = y + 1, ack = x + 1 + z, len = k -
+        --- ACK seq = x + 1 + z, ack = y + 1 + k ---->
+                            ...
+
+        :param file_name: file for response
+        :return: null
+        """
+
+        # init the output file
+        create_file(file_name)
+        local_file_name = file_name
+        local_file = open(local_file_name, 'r+b') 
+
+        # Flag for the first packet containing http response header
+        tcp_header_and_body_flag = 0
+        while True:
+            start_time = time.process_time()
+            now = start_time
+            while now - start_time < TIME_OUT:
+                try:
+                    ip_packet = self.recv_sock.recv(65536)
+                    ip_headers, ip_data = self.unpackIP(ip_packet)
+                    tcp_headers, tcp_response = self.unpackTCP(ip_data)
+                    break
+                except ValueError:
+                    now = time.process_time()
+                    continue
+            if time.process_time() - self.last_ack_time > 3 * TIME_OUT:
+                self.disconnect()
+                return
+
+            # timeout, reset the cwnd
+            if now - start_time > TIME_OUT:
+                self.cwnd = 1
+
+            # keep the order of packets using seq and ack
+            rec_ack = tcp_headers['ack']
+            rec_seq = tcp_headers['seq']
+            if self.seq + self.seq_offset == rec_ack and self.ack + self.ack_offset == rec_seq:
+                self.last_ack_time = time.process_time()
+                self.cwnd = min(self.cwnd, 999) + 1
+                self.ack_offset += len(tcp_response)
+                if not tcp_header_and_body_flag:
+                    headers, body = parse_header_body(tcp_response)
+                    if len(body) > 0:
+                        local_file.write(body)
+                        tcp_header_and_body_flag = 1
+                else:
+                    local_file.write(tcp_response)
+                print('get recv', rec_seq, rec_ack, tcp_headers['flags'], len(tcp_response))
+
+            else:
+                # packet lost, cwnd reset
+                self.cwnd = 1
+
+            if tcp_headers['flags'] % 2 == 1:
+                # FIN from server, reply to the request from server to end the connection.
+                self.reply_disconnect()
+                break
+            else:
+                # send ACK for the received packets
+                self.send_packet(self.seq + self.seq_offset, self.ack + self.ack_offset, 'ACK', '')
+                print('get sent', self.seq + self.seq_offset, self.ack + self.ack_offset, 'ACK', '')
+
+       # self.disconnect()
+        local_file.close()
+        print("DOWNLOAD DONE TO :" + local_file_name)
+
+    def reply_disconnect(self):
+        """
+        When receive a FIN from server, reply to this request to tear down the connection, by sending a FIN-ACK. Then
+        receive an ACK from server and tear down the connection
+
+        client ------------------------------ server
+        <-- PSH,FIN,ACK seq = m, ack = n, len = k --
+        ---- FIN, ACK seq = n, ack = m + k + 1 ---->
+         <---- ACK seq = m + k + 1, ack = n + 1 ----
+        :return:null
+        """
+        self.send_packet(self.seq + self.seq_offset, self.ack + self.ack_offset + 1, 'FIN-ACK', '')
+        print('dis sent', self.seq + self.seq_offset, self.ack + self.ack_offset + 1, 'FIN-ACK', 0)
+        ret = self.rev_ack(fin = 1)
+        self.close()
 
     def disconnect(self):
-        self.teardown()
-        self.socket.close()
-        self.rcv_socket.close()
+        """
+        Client wants to end the connection.
+
+        client ------------------------- server
+        -------- FIN seq = m, ack = n -------->
+        <----- ACK seq = k , ack = m + 1 ------
+        <---- FIN-ACK seq = w, ack = m + 1 ----
+        ---- ACK seq = m + 1 , ack = w + 1 ---->
+        :return: null
+        """
+        self.send_packet(self.seq + self.seq_offset, self.ack + self.ack_offset, 'FIN', '')
+        print('dis sent', self.seq + self.seq_offset, self.ack + self.ack_offset, 'FIN', 0)
+
+        while self.rev_ack(fin=1):
+            self.send_packet(self.seq + self.seq_offset, self.ack + self.ack_offset, 'FIN', '')
+            print('dis sent', self.seq + self.seq_offset, self.ack + self.ack_offset, 'FIN', 0)
+        while True:
+            start_time = time.process_time()
+            now = time.process_time()
+            tcp_headers = {}
+            while now - start_time <= TIME_OUT:
+                try:
+                    ip_packet = self.recv_sock.recv(65536)
+                    ip_headers, ip_data = self.unpackIP(ip_packet)
+                    tcp_headers, tcp_data = self.unpackTCP(ip_data)
+                    if tcp_headers['flags'] == 1: #FIN
+                        break
+                except:
+                    continue
+                now = time.process_time()
+            if now - start_time > TIME_OUT:
+                # retry
+                self.disconnect()
+            response_ack = tcp_headers['ack']
+            if self.seq + self.seq_offset + 1 == response_ack:
+                print('dis recv', tcp_headers['seq'],tcp_headers['ack'], tcp_headers['flags'], 0)
+                response_ack = tcp_headers['seq']
+                self.send_packet(self.seq + self.seq_offset + 1, response_ack + 1, 'ACK', '')
+                print('dis sent', self.seq + self.seq_offset + 1, response_ack + 1, 'ACK', '')
+            self.close()
+            return
+
+    def connect(self, address):
+        """
+        Set up the IP and port of the remote server
+        :param address:
+        :return: null
+        """
+        self.DEST_IP = address[0]
+        self.DEST_PORT = address[1]
+
+        self.SRC_ADDR = socket.inet_aton(self.SRC_IP)
+        self.DEST_ADDR = socket.inet_aton(self.DEST_IP)
+
+    def close(self):
+        """
+        Close the socket (both send and recv)
+        :return: null
+        """
+        self.send_sock.close()
+        self.recv_sock.close()

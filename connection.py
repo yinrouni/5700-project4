@@ -1,4 +1,4 @@
-import RawSocket2
+import RawSocket
 import socket
 import sys
 from urllib.parse import urlparse
@@ -60,7 +60,7 @@ file_name = getFileName(path)
 
 
 
-client_socket = RawSocket2.RawSocket()
+client_socket = RawSocket.RawSocket()
 server_address = (socket.gethostbyname(HOST), PORT)
 client_socket.connect(server_address)
 
