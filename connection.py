@@ -20,7 +20,7 @@ def generaterHeader(path):
     """
     request = "GET %s HTTP/1.0\r\nHost: %s\r\n" % (path, HOST) + \
             "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8\r\n" + \
-            "Connection: keep-alive\r\n\r\n"
+            "Connection: close\r\n\r\n"
 
     return request
 

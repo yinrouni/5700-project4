@@ -454,8 +454,8 @@ class RawSocket:
                     if not headers.startswith(b'HTTP/1.1 200 OK'):
                         print('not 200 !!!!')
                         ok = 0
-                        # self.reply_disconnect()
-                        # os.system('rm -rf %s' % (file_name))
+                        self.disconnect()
+                        os.system('rm -rf %s' % (file_name))
                         # sys.exit(1)
                     if len(body) > 0:
                         local_file.write(body)
