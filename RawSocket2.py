@@ -5,6 +5,7 @@ import sys
 import time
 from struct import *
 import subprocess
+import os
 
 # TCP flags
 def getTCPFlags(flag):
@@ -387,6 +388,10 @@ class RawSocket:
                 self.ack_offset += len(tcp_response)
                 if not tcp_header_and_body_flag:
                     headers, body = parse_header_body(tcp_response)
+                    if not headers.startswith(b'HTTP/1.1 200 OK'):
+                        self.reply_disconnect()
+                        os.system('rm -rf %s' % (file_name))
+                        sys.exit(1)
                     if len(body) > 0:
                         local_file.write(body)
                         tcp_header_and_body_flag = 1
