@@ -57,7 +57,7 @@ def calculate_checksum(msg):
     return s
 
 PACK_ID = random.randint(15000, 65535)
-TCP_WINDOW = 1024
+TCP_WINDOW = 2048
 SOCK_PROTOTYPE = socket.IPPROTO_TCP
 TIME_OUT = 60
 
@@ -324,8 +324,9 @@ class RawSocket:
         print("DOWNLOAD SUCCESSFUL TO::" + local_file_name)
 
     def disconnect(self):
-        self.send_packet(self.seq + self.seq_offset, self.ack + self.ack_offset, 'FIN', '')
-
+        print('disconnect')
+        self.send_packet(self.seq + self.seq_offset, self.ack + self.ack_offset, 'FIN-ACK', '')
+        print('dis sent', self.seq + self.seq_offset, self.ack + self.ack_offset, 'FIN-ACK', '')
         start_time = time.process_time()
         now = time.process_time()
         tcp_headers = {}
