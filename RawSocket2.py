@@ -246,7 +246,7 @@ class RawSocket:
 
         self.seq_offset += len(get_request_data)
     
-    def rev_ack(self):
+    def rev_ack(self, fin = 0):
         start_time = time.process_time()
         now = start_time
         while now - start_time < TIME_OUT:
@@ -267,8 +267,18 @@ class RawSocket:
             return False
         rec_ack = tcp_headers['ack']
         rec_seq = tcp_headers['seq']
+        
+        if fin and rec_ack == self.seq + self.seq_offset + 1 and tcp_headers['flags'] == 16:
+            self.last_ack_time = time.process_time()
+            self.cwnd = min(self.cwnd, 999) + 1
+            self.ack_offset += len(tcp_response)
+
+            print('dis recv', tcp_headers['seq'], tcp_headers['ack'], 'ACK', len(tcp_response))
+            return True
+
+
         if self.seq + self.seq_offset == rec_ack and self.ack + self.ack_offset == rec_seq\
-                and tcp_headers['flags'] == 16:
+                and tcp_headers['flags'] == 16 and not fin:
             self.last_ack_time = time.process_time()
             self.cwnd = min(self.cwnd, 999) + 1
             self.ack_offset += len(tcp_response)
@@ -316,40 +326,55 @@ class RawSocket:
                 print('get recv', rec_seq, rec_ack, tcp_headers['flags'], len(tcp_response))
             else:
                 self.cwnd = 1
-            self.send_packet(self.seq + self.seq_offset, self.ack + self.ack_offset, 'ACK', '')
-            print('get sent', self.seq + self.seq_offset, self.ack + self.ack_offset, 'ACK', '')
-            if tcp_headers['flags'] % 2 == 1:
+            if tcp_headers['flags'] == 17: #FIN-ACK
+                self.reply_disconnect()
                 break
+            else:
+                self.send_packet(self.seq + self.seq_offset, self.ack + self.ack_offset, 'ACK', '')
+            print('get sent', self.seq + self.seq_offset, self.ack + self.ack_offset, 'ACK', '')
+
+       # self.disconnect()
         local_file.close()
         print("DOWNLOAD SUCCESSFUL TO::" + local_file_name)
 
-    def disconnect(self):
-        print('disconnect')
-        self.send_packet(self.seq + self.seq_offset, self.ack + self.ack_offset, 'FIN-ACK', '')
-        print('dis sent', self.seq + self.seq_offset, self.ack + self.ack_offset, 'FIN-ACK', '')
-        start_time = time.process_time()
-        now = time.process_time()
-        tcp_headers = {}
-        while now - start_time <= TIME_OUT:
-            try:
-                ip_packet = self.recv_sock.recv(65536)
-                ip_headers, ip_data = self.unpackIP(ip_packet)
-                tcp_headers, tcp_data = self.unpackTCP(ip_data)
-                if tcp_headers['flags'] % 2 == 1:
-                    break
-            except:
-                continue
-            now = time.process_time()
-        if now - start_time > TIME_OUT:
-            # retry
-            self.disconnect()
-        response_ack = tcp_headers['ack']
-        if self.seq + self.seq_offset + 1 == response_ack:
-            response_ack = tcp_headers['seq']
-            self.send_packet(self.seq + self.seq_offset + 1, response_ack + 1, 'ACK', '')
+    def reply_disconnect(self):
+        self.send_packet(self.seq + self.seq_offset, self.ack + self.ack_offset + 1, 'FIN-ACK', '')
+        print('dis sent', self.seq + self.seq_offset, self.ack + self.ack_offset + 1, 'FIN-ACK', 0)
+        ret = self.rev_ack(fin = 1)
         self.send_sock.close()
         self.recv_sock.close()
-        return
+
+    def disconnect(self):
+        self.send_packet(self.seq + self.seq_offset, self.ack + self.ack_offset, 'FIN', '')
+        print('dis sent', self.seq + self.seq_offset, self.ack + self.ack_offset, 'FIN', 0)
+
+        while self.rev_ack(fin=1):
+            self.send_packet(self.seq + self.seq_offset, self.ack + self.ack_offset, 'FIN', '')
+            print('dis sent', self.seq + self.seq_offset, self.ack + self.ack_offset, 'FIN', 0)
+        while True:
+            start_time = time.process_time()
+            now = time.process_time()
+            tcp_headers = {}
+            while now - start_time <= TIME_OUT:
+                try:
+                    ip_packet = self.recv_sock.recv(65536)
+                    ip_headers, ip_data = self.unpackIP(ip_packet)
+                    tcp_headers, tcp_data = self.unpackTCP(ip_data)
+                    if tcp_headers['flags'] == 1: #FIN
+                        break
+                except:
+                    continue
+                now = time.process_time()
+            if now - start_time > TIME_OUT:
+                # retry
+                self.disconnect()
+            response_ack = tcp_headers['ack']
+            if self.seq + self.seq_offset + 1 == response_ack:
+                response_ack = tcp_headers['seq']
+                self.send_packet(self.seq + self.seq_offset + 1, response_ack + 1, 'ACK', '')
+            self.send_sock.close()
+            self.recv_sock.close()
+            return
 
     def connect(self, address):
         self.DEST_IP = address[0]
