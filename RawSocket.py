@@ -375,6 +375,8 @@ class RawSocket:
         rec_ack = tcp_headers['ack']
         rec_seq = tcp_headers['seq']
 
+        print('===============', rec_seq, rec_ack, tcp_headers['flags'],'============')
+
         # ACK for FIN/FIN-ACK
         if fin and rec_ack == self.seq + self.seq_offset + 1 and tcp_headers['flags'] == 16:
             self.last_ack_time = time.process_time()
@@ -418,6 +420,7 @@ class RawSocket:
 
         # Flag for the first packet containing http response header
         tcp_header_and_body_flag = 0
+        ok = 1
         while True:
             start_time = time.process_time()
             now = start_time
@@ -447,11 +450,12 @@ class RawSocket:
                 self.ack_offset += len(tcp_response)
                 if not tcp_header_and_body_flag:
                     headers, body = parse_header_body(tcp_response)
-                    headers, body = parse_header_body(tcp_response)
                     if not headers.startswith(b'HTTP/1.1 200 OK'):
-                        self.disconnect()
-                        os.system('rm -rf %s' % (file_name))
-                        return
+                        ok = 0
+                        break
+                    else:
+                        ok = 1
+
                     if len(body) > 0:
                         local_file.write(body)
                         tcp_header_and_body_flag = 1
@@ -462,7 +466,10 @@ class RawSocket:
             else:
                 # packet lost, cwnd reset
                 self.cwnd = 1
-
+            if not ok:
+                self.disconnect()
+                os.system('rm -rf %s' % file_name)
+                return
             if tcp_headers['flags'] % 2 == 1:
                 # FIN from server, reply to the request from server to end the connection.
                 self.reply_disconnect()
@@ -532,8 +539,9 @@ class RawSocket:
                 response_ack = tcp_headers['seq']
                 self.send_packet(self.seq + self.seq_offset + 1, response_ack + 1, 'ACK', '')
                 print('dis sent', self.seq + self.seq_offset + 1, response_ack + 1, 'ACK', '')
-                self.close()
-                return
+                break
+            self.close()
+            return
 
     def connect(self, address):
         """
