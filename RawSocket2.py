@@ -271,15 +271,19 @@ class RawSocket:
 
         client ---------------------- server
         ----------- SYN seq = x ----------->
-        <--S YN, ACK seq = y, ack = x + 1 --
-        --- ACK seq = x + 1, ack = y + 1 ---
+        <-- SYN, ACK seq = y, ack = x + 1 --
+        --- ACK seq = x + 1, ack = y + 1 --->
 
         :return: null
         """
+
+        # Send a SYN
         self.send_packet(self.seq, 0, 'SYN', '')
         print('handshake sent', self.seq, 0, 'SYN', 0)
-        ip_packet = self.recv_sock.recv(65536)
 
+        # receive a SYN-ACK. if the incoming packet fails the verification and it's invalid, discard it and try to
+        # receive another.
+        ip_packet = self.recv_sock.recv(65536)
         while ip_packet:
             try:
                 ip_headers, ip_data = self.unpackIP(ip_packet)
@@ -295,22 +299,41 @@ class RawSocket:
             print('handshake recv', tcp_headers['seq'], tcp_headers['ack'], 
                     'SYN-ACK', 0)
 
+            # verify the ack of incoming SYN-ACK with the SYN sent. If succeed, send a ACK for it, and handshake
+            # done. otherwise, handshake fails.
             if self.seq + 1 == response_ack:
                 self.seq = response_ack
                 response_seq = tcp_headers['seq']
                 self.ack = response_seq + 1
                 self.send_packet(self.seq, self.ack, 'ACK', '')
                 print('handshake sent', self.seq, self.ack, 'ACK', 0)
-                # print("handshake done")
+                print("handshake done")
                 break
             else:
-                # print("handshake fails")
+                print("handshake fails")
                 raise ValueError("handshake fails")
 
 
     def send(self, get_request_data):
-        print("STARTED DOWNLOADING")
-        self.handshake()
+        """
+        Send request after handshake. Unpack and validate the incoming ACK packet. If it fails validation,
+        resend the request.
+
+        client -------------------------------- server
+        - PSH-ACK seq = x + 1, ack = y + 1, len = z ->
+        <----- ACK seq = y + 1, ack = x + 1 + z ------
+
+        :param get_request_data: http request
+        :return: null
+        """
+
+        print("start to download")
+        while True:
+            try:
+                self.handshake()
+                break
+            except ValueError:
+                continue
 
         self.send_packet(self.seq, self.ack, 'PSH-ACK', get_request_data)
         print('get sent', self.seq, self.ack, 'PSH-ACK', len(get_request_data))
@@ -322,6 +345,14 @@ class RawSocket:
         self.seq_offset += len(get_request_data)
     
     def rev_ack(self, fin = 0):
+        """
+        Handle the incoming ACK for PSH-ACK when sending http request, and FIN when client wants to end the connection.
+        If there's valid ACK within 1 min, assume the sent packet is lost and retransmit. If it does not receive any
+        data for 3 min, client start to tear down the connection.
+        :param fin: flag for whether it should be a ACK for a FIN
+        :return: whether the incoming ACK is valid
+        """
+
         start_time = time.process_time()
         now = start_time
         while now - start_time < TIME_OUT:
@@ -342,7 +373,8 @@ class RawSocket:
             return False
         rec_ack = tcp_headers['ack']
         rec_seq = tcp_headers['seq']
-        
+
+        # ACK for FIN
         if fin and rec_ack == self.seq + self.seq_offset + 1 and tcp_headers['flags'] == 16:
             self.last_ack_time = time.process_time()
             self.cwnd = min(self.cwnd, 999) + 1
@@ -351,7 +383,7 @@ class RawSocket:
             print('dis recv', tcp_headers['seq'], tcp_headers['ack'], 'ACK', len(tcp_response))
             return True
 
-
+        # ACK for PSH-ACK
         if self.seq + self.seq_offset == rec_ack and self.ack + self.ack_offset == rec_seq\
                 and tcp_headers['flags'] == 16 and not fin:
             self.last_ack_time = time.process_time()
@@ -363,9 +395,27 @@ class RawSocket:
         return False
 
     def recv(self,file_name):
+        """
+        Receive the response of the request. Keep receiving ACK with content from server, and send back ACK for each
+        of them. If there's valid ACK within 1 min, assume the sent packet is lost and retransmit. If it does not
+        receive any data for 3 min, client start to tear down the connection. When receiving a packet marked FIN,
+        reply to the request from server to end the connection.
+
+        client -------------------------------- server
+        <- ACK seq = y + 1, ack = x + 1 + z, len = k -
+        --- ACK seq = x + 1 + z, ack = y + 1 + k ---->
+                            ...
+
+        :param file_name: file for response
+        :return: null
+        """
+
+        # init the output file
         create_file(file_name)
         local_file_name = file_name
         local_file = open(local_file_name, 'r+b') 
+
+        # Flag for the first packet containing http response header
         tcp_header_and_body_flag = 0
         while True:
             start_time = time.process_time()
@@ -383,8 +433,11 @@ class RawSocket:
                 self.disconnect()
                 return
 
+            # timeout, reset the cwnd
             if now - start_time > TIME_OUT:
                 self.cwnd = 1
+
+            # keep the order of packets using seq and ack
             rec_ack = tcp_headers['ack']
             rec_seq = tcp_headers['seq']
             if self.seq + self.seq_offset == rec_ack and self.ack + self.ack_offset == rec_seq:
@@ -399,18 +452,23 @@ class RawSocket:
                 else:
                     local_file.write(tcp_response)
                 print('get recv', rec_seq, rec_ack, tcp_headers['flags'], len(tcp_response))
+
             else:
+                # packet lost, cwnd reset
                 self.cwnd = 1
-            if tcp_headers['flags'] % 2== 1: #FIN from server
+
+            if tcp_headers['flags'] % 2 == 1:
+                # FIN from server, reply to the request from server to end the connection.
                 self.reply_disconnect()
                 break
             else:
+                # send ACK for the received packets
                 self.send_packet(self.seq + self.seq_offset, self.ack + self.ack_offset, 'ACK', '')
                 print('get sent', self.seq + self.seq_offset, self.ack + self.ack_offset, 'ACK', '')
 
        # self.disconnect()
         local_file.close()
-        print("DOWNLOAD SUCCESSFUL TO::" + local_file_name)
+        print("DOWNLOAD DONE TO :" + local_file_name)
 
     def reply_disconnect(self):
         self.send_packet(self.seq + self.seq_offset, self.ack + self.ack_offset + 1, 'FIN-ACK', '')

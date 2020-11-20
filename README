@@ -43,3 +43,8 @@ Handshake
         ----------- SYN seq = x ----------->
         <--S YN, ACK seq = y, ack = x + 1 --
         --- ACK seq = x + 1, ack = y + 1 ---
+http request
+        - PSH-ACK seq = x + 1, ack = y + 1, len = z ->
+        <----- ACK seq = y + 1, ack = x + 1 + z ------
+        <- ACK seq = y + 1, ack = x + 1 + z, len = k -
+        --- ACK seq = x + 1 + z, ack = y + 1 + k ---->
