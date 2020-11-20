@@ -6,10 +6,32 @@ import time
 from struct import *
 import subprocess
 
-def fin_flag(tcp_headers):
-    return tcp_headers['flags'] % 2 == 1
+# TCP flags
+def getTCPFlags(flag):
+    tcp_fin = 0
+    tcp_syn = 0
+    tcp_rst = 0
+    tcp_psh = 0
+    tcp_ack = 0
+    tcp_urg = 0
 
-def get_body_and_headers_from_tcp_data(tcp_data):
+    if flag == 'SYN':
+        tcp_syn = 1
+    elif flag == 'ACK':
+        tcp_ack = 1
+    elif flag == 'FIN':
+        tcp_fin = 1
+    elif flag == 'PSH-ACK':
+        tcp_psh = 1
+        tcp_ack = 1
+    elif flag == 'FIN-ACK':
+        tcp_ack = 1
+        tcp_fin = 1
+
+    tcp_flags = tcp_fin + (tcp_syn << 1) + (tcp_rst << 2) + (tcp_psh << 3) + (tcp_ack << 4) + (tcp_urg << 5)
+    return tcp_flags
+
+def parse_header_body(tcp_data):
     body = tcp_data.split(bytes('\r\n\r\n', 'utf-8'), 1)
     if len(body) == 1:
         return body[0], ''
@@ -45,7 +67,6 @@ class RawSocket:
         self.seq = random.randint(0, 2 ** 32 - 1)
         self.ack = 0
 
-        # print("DOMAIN", domain_url)
         self.DEST_IP = ''
         self.DEST_PORT = 80
         self.cwnd = 1
@@ -55,8 +76,8 @@ class RawSocket:
 
         self.SRC_ADDR = ''
         self.DEST_ADDR = ''
-        self.seq_addr = 0
-        self.ack_addr = 0
+        self.seq_offset = 0
+        self.ack_offset = 0
         self.send_sock = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_RAW)
         self.recv_sock = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_TCP)
 
@@ -76,7 +97,7 @@ class RawSocket:
         fragment_bytes = fragment_offset + (flags << 3)
         ttl = 255
         protocol = socket.IPPROTO_TCP
-        header_checksum = 0
+
         ip_header = pack('!BBHHHBBH4s4s', first_byte, service_type, total_length, identification, fragment_bytes,
                          ttl, protocol, 0, self.SRC_ADDR, self.DEST_ADDR)
         header_checksum = calculate_checksum(ip_header)
@@ -105,7 +126,9 @@ class RawSocket:
         return tcp_packet
 
     def send_packet(self, seq, ack, flags, data):
-        packet = self.createIPHeader(len(data)) + self.createTCPPacket(seq, ack, flags, data) + bytes(data, 'utf-8')
+
+        packet = self.createIPHeader(len(data)) + self.createTCPPacket(seq, ack, getTCPFlags(flags), data) + bytes(
+            data, 'utf-8')
         self.send_sock.sendto(packet, (self.DEST_IP, 0))
 
     # unpacks the Transport layer packet and  performs checks
@@ -116,26 +139,10 @@ class RawSocket:
 
         tcp_header_keys = ['src', 'dest', 'seq', 'ack', 'off_res', 'flags', 'awnd', 'chksm', 'urg']
         tcp_headers = dict(zip(tcp_header_keys, tcp_header_values))
-        # tcp_headers = {}
-        # tcp_headers['src'] = tcp_header_values[0]
-        # tcp_headers['dest'] = tcp_header_values[1]
-        # tcp_headers['seq'] = tcp_header_values[2]
-        # tcp_headers['ack'] = tcp_header_values[3]
-        # tcp_headers['off_res'] = tcp_header_values[4]
-        # tcp_headers['flags'] = tcp_header_values[5]
-        # tcp_headers['awnd'] = tcp_header_values[6]
-        # tcp_headers['chksm'] = tcp_header_values[7]
-        # tcp_headers['urg'] = tcp_header_values[8]
 
-        # print("dadadddda", tcp_headers)
         if tcp_headers['dest'] != self.SRC_PORT:
             # print("TCP destination port != SRC_PORT!!")
-            raise ValueError
-        # else:
-        #     print('src', tcp_headers['src'])
-        #     print('dest', tcp_headers['dest'])
-        #     print('ack', tcp_headers['ack'])
-        #     print('flags', tcp_headers['flags'])
+            raise ValueError('TCP: invalid port')
 
         offset = tcp_headers['off_res'] >> 4
 
@@ -177,14 +184,8 @@ class RawSocket:
 
         # print("tcp data",tcp_packet)
         if ip_headers['dest'] != self.SRC_ADDR:
-            # print(ip_headers['dest'], SRC_ADDR)
-            # print("IP packet not from SRC")
-            raise ValueError
-        # else:
-        #     print('IP packet from', socket.inet_ntoa(ip_headers['src']))
-        #     print('IP packet to', socket.inet_ntoa(ip_headers['dest']))
+            raise ValueError('IP: invalid addr')
 
-        #
         if ip_headers['proto'] != SOCK_PROTOTYPE:
             print("NOT TCP Protocol")
             raise ValueError
@@ -192,14 +193,9 @@ class RawSocket:
         return ip_headers, tcp_packet
 
     def handshake(self):
-        self.send_packet(self.seq, 0, 0x02, '')
+        self.send_packet(self.seq, 0, 'SYN', '')
         ip_packet = self.recv_sock.recv(65536)
-        # packet = createIPHeader(0) + createTCPPacket(0, 0, 2, '')
-        # send_sock.sendto(packet, (DEST_IP, 0))
-        packet_sent_time = time.process_time()
-        # return packet_sent_time
-        st_time = time.process_time()
-        tcp_headers = {}
+
         while ip_packet:
             try:
                 ip_headers, ip_data = self.unpackIP(ip_packet)
@@ -207,24 +203,22 @@ class RawSocket:
             except ValueError:
                 ip_packet = self.recv_sock.recv(65536)
                 continue
-            # print("FLAGSSSS:::", tcp_headers['flags'])
+
             if tcp_headers['flags'] != 0x12:
                 ip_packet = self.recv_sock.recv(65536)
                 continue
             response_ack = tcp_headers['ack']
-            # print("resp:", response_ack, seq)
+
             if self.seq + 1 == response_ack:
                 self.seq = response_ack
                 response_seq = tcp_headers['seq']
                 self.ack = response_seq + 1
-                self.send_packet(self.seq, self.ack, 0x10, '')
+                self.send_packet(self.seq, self.ack, 'ACK', '')
                 # print("hands shook well")
                 break
             else:
-                print("hands did not shake well")
-                raise ValueError
-        else:
-            print("NONEE")
+                # print("handshake fails")
+                raise ValueError("handshake fails")
 
 
     def send(self, get_request_data):
@@ -239,11 +233,11 @@ class RawSocket:
         # temp_file = open(local_file_name, 'w+')
         # temp_file.close()
 
-        self.send_packet(self.seq, self.ack, 0x18, get_request_data)
-        self.seq_addr += len(get_request_data)
+        self.send_packet(self.seq, self.ack, 'PSH-ACK', get_request_data)
+        self.seq_offset += len(get_request_data)
 
     def recv(self):
-        # print("vacha")
+
         local_file_name = 'file.txt'
         local_file = open(local_file_name, 'r+b') 
         tcp_header_and_body_flag = 0
@@ -267,12 +261,12 @@ class RawSocket:
                 self.cwnd = 1
             rec_ack = tcp_headers['ack']
             rec_seq = tcp_headers['seq']
-            if self.seq + self.seq_addr == rec_ack and self.ack + self.ack_addr == rec_seq:
+            if self.seq + self.seq_offset == rec_ack and self.ack + self.ack_offset == rec_seq:
                 self.last_ack_time = time.process_time()
                 self.cwnd = min(self.cwnd, 999) + 1
-                self.ack_addr += len(tcp_response)
+                self.ack_offset += len(tcp_response)
                 if not tcp_header_and_body_flag:
-                    headers, body = get_body_and_headers_from_tcp_data(tcp_response)
+                    headers, body = parse_header_body(tcp_response)
                     if len(body) > 0:
                         local_file.write(body)
                         tcp_header_and_body_flag = 1
@@ -280,14 +274,15 @@ class RawSocket:
                     local_file.write(tcp_response)
             else:
                 self.cwnd = 1
-            self.send_packet(self.seq + self.seq_addr, self.ack + self.ack_addr, 0x10, '')
-            if fin_flag(tcp_headers):
+            self.send_packet(self.seq + self.seq_offset, self.ack + self.ack_offset, 'ACK', '')
+            if tcp_headers['flags'] % 2 == 1:
+                # reply to close
                 break
         local_file.close()
         print("DOWNLOAD SUCCESSFUL TO::" + local_file_name)
 
     def disconnect(self):
-        self.send_packet(self.seq + self.seq_addr, self.ack + self.ack_addr, 0x01, '')
+        self.send_packet(self.seq + self.seq_offset, self.ack + self.ack_offset, 'FIN', '')
 
         start_time = time.process_time()
         now = time.process_time()
@@ -297,18 +292,18 @@ class RawSocket:
                 ip_packet = self.recv_sock.recv(65536)
                 ip_headers, ip_data = self.unpackIP(ip_packet)
                 tcp_headers, tcp_data = self.unpackTCP(ip_data)
-                if fin_flag(tcp_headers):
+                if tcp_headers['flags'] % 2 == 1:
                     break
             except:
                 continue
             now = time.process_time()
         if now - start_time > TIME_OUT:
-            print("TEAR DOWN LO PROBLEM RAAAA::::")
+            # retry
             self.disconnect()
         response_ack = tcp_headers['ack']
-        if self.seq + self.seq_addr + 1 == response_ack:
+        if self.seq + self.seq_offset + 1 == response_ack:
             response_ack = tcp_headers['seq']
-            self.send_packet(self.seq + self.seq_addr + 1, response_ack + 1, 0x10, '')
+            self.send_packet(self.seq + self.seq_offset + 1, response_ack + 1, 'ACK', '')
         self.send_sock.close()
         self.recv_sock.close()
         return
