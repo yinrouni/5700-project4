@@ -7,6 +7,7 @@ HOST = 'david.choffnes.com'  # Server hostname or IP address
 PORT = 80  # Port
 
 
+
 def generaterHeader(method, path, cookie, data):
     """The function that generate HTTP Header
     Args:
@@ -19,10 +20,12 @@ def generaterHeader(method, path, cookie, data):
     """
 
     if method == 'POST':
-        prefix = "%s %s HTTP/1.1\r\nHost: %s\r\nContent-Type: application/x-www-form-urlencoded" \
+        prefix = "%s %s HTTP/1.0\r\nHost: %s\r\nContent-Type: application/x-www-form-urlencoded" \
                  "\r\nContent-Length: %s\r\n" % (method, path, HOST, len(data))
     else:
-        prefix = "%s %s HTTP/1.1\r\nHost: %s\r\nConnection: keep-alive\r\n" % (method, path, HOST)
+        prefix = "%s %s HTTP/1.0\r\nHost: %s\r\n" % (method, path, HOST) + \
+            "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8\r\n" + \
+            "Connection: keep-alive\r\n"
 
     if cookie and data:
         return ("%sCookie: %s\r\n\r\n%s" % (prefix, cookie, data))
@@ -60,7 +63,10 @@ if not path or path == '/':
     path = '/'
     file_name = 'index.html'
 else:
-    file_name = path.split('/')[-1]
+    if path.split('/')[-1]:
+        file_name = path.split('/')[-1]
+    else:
+        file_name = 'index.html'
 
 print(file_name)
 
