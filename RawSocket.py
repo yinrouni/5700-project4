@@ -375,8 +375,6 @@ class RawSocket:
         rec_ack = tcp_headers['ack']
         rec_seq = tcp_headers['seq']
 
-        print('===============', rec_seq, rec_ack, tcp_headers['flags'],'============')
-
         # ACK for FIN/FIN-ACK
         if fin and rec_ack == self.seq + self.seq_offset + 1 and tcp_headers['flags'] == 16:
             self.last_ack_time = time.process_time()
@@ -466,10 +464,6 @@ class RawSocket:
             else:
                 # packet lost, cwnd reset
                 self.cwnd = 1
-            if not ok:
-                self.disconnect()
-                os.system('rm -rf %s' % file_name)
-                return
             if tcp_headers['flags'] % 2 == 1:
                 # FIN from server, reply to the request from server to end the connection.
                 self.reply_disconnect()
@@ -478,7 +472,11 @@ class RawSocket:
                 # send ACK for the received packets
                 self.send_packet(self.seq + self.seq_offset, self.ack + self.ack_offset, 'ACK', '')
                 print('get sent', self.seq + self.seq_offset, self.ack + self.ack_offset, 'ACK', '')
-
+            if not ok:
+                print('not 200 ------ disconnect')
+                self.disconnect()
+                os.system('rm -rf %s' % file_name)
+                return
        # self.disconnect()
         local_file.close()
         print("DOWNLOAD DONE TO :" + local_file_name)
