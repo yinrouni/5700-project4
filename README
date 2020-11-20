@@ -21,6 +21,7 @@ IP header
    |                    Options                    |    Padding    |
    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 IP features implemented:
+connect(): we implemented this function to set up the correct IP and port of the remote server
 createIPHeader(): we implemented this function to generated an IP header by setting up essential fields in the header,
                   and setting correct checksum in packet.
                   
