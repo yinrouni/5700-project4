@@ -1,3 +1,9 @@
+Launch program
+1. make
+2. ./rawhttpget <URL>
+
+
+
 IP header
 0                   1                   2                   3
     0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
@@ -14,8 +20,14 @@ IP header
    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
    |                    Options                    |    Padding    |
    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+IP features implemented:
+createIPHeader(): we implemented this function to generated an IP header by setting up essential fields in the header,
+                  and setting correct checksum in packet.
+                  
+unpackIP(): we implement this function to unpacks the incoming IP packet and validating the checksums the incoming packet.
+            and it also check the validity of IP headers from the remote server.
 
- TCP header
+TCP header
  0                   1                   2                   3
     0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
@@ -35,6 +47,32 @@ IP header
    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
    |                             data                              |
    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+TCP features implemented:
+createTCPPacket(): we implemented this function to generated an TCP header by setting up essential fields in the header,
+                   and Generate pseudo header using 0 as checksum,then replace the checksum calculated by it and repack the returned 
+                   TCP header.
+
+unpackTCP(): we implement this function to unpacks the incoming TCP packet and validating the checksums the incoming packet.
+             and it also check the validity of TCP headers from the remote server.
+             
+handshake(): we implemented this function to set up the connect by handshaking. Start with sending a SYN to server. Unpack and
+             validate the incoming SYN-ACK packet. Send a ACK for it. Handshake done.
+
+send():      we implemented this function to send request after handshake.Unpack and validate the incoming ACK packet. 
+             If it fails validation,resend the request.
+             
+rev_ack():   we implement this function to Handle the incoming ACK for PSH-ACK when sending http request, and FIN when client wants
+             to end the connection.If there's valid ACK within 1 min, assume the sent packet is lost and retransmit. If it does not
+             receive any data for 3 min, client start to tear down the connection. And we set the cong cwnd in this function.
+
+recv():      we implement this function to Receive the response of the request. Keep receiving ACK with content from server, 
+             and send back ACK for each of them. If there's valid ACK within 1 min, assume the sent packet is lost and retransmit.
+             If it does not receive any data for 3 min, client start to tear down the connection. When receiving a packet marked FIN,
+             reply to the request from server to end the connection.
+             
+disconnect() and reply_disconnect(): handle the connection teardown
+
+ 
 
 packet = IP header + TCP header + data
 
