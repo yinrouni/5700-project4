@@ -418,6 +418,9 @@ class RawSocket:
 
         # Flag for the first packet containing http response header
         tcp_header_and_body_flag = 0
+        # status code == 200
+        ok = 1
+
         while True:
             start_time = time.process_time()
             now = start_time
@@ -450,6 +453,7 @@ class RawSocket:
                     headers, body = parse_header_body(tcp_response)
                     if not headers.startswith(b'HTTP/1.1 200 OK'):
                         print('not 200 !!!!')
+                        ok = 0
                         # self.reply_disconnect()
                         # os.system('rm -rf %s' % (file_name))
                         # sys.exit(1)
@@ -475,6 +479,9 @@ class RawSocket:
 
        # self.disconnect()
         local_file.close()
+        if not ok:
+            os.system('rm -rf %s' % (file_name))
+            print('rm output')
         print("DOWNLOAD DONE TO :" + local_file_name)
 
     def reply_disconnect(self):
