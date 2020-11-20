@@ -325,8 +325,9 @@ class RawSocket:
         print("DOWNLOAD SUCCESSFUL TO::" + local_file_name)
 
     def disconnect(self):
-        self.send_packet(self.seq + self.seq_offset, self.ack + self.ack_offset, 'FIN', '')
-
+        print('disconnect')
+        self.send_packet(self.seq + self.seq_offset, self.ack + self.ack_offset, 'FIN-ACK', '')
+        print('dis sent', self.seq + self.seq_offset, self.ack + self.ack_offset, 'FIN-ACK', '')
         start_time = time.process_time()
         now = time.process_time()
         tcp_headers = {}
