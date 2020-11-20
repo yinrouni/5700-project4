@@ -225,7 +225,7 @@ class RawSocket:
                 raise ValueError("handshake fails")
 
 
-    def send(self, get_request_data,file_name):
+    def send(self, get_request_data):
         print("STARTED DOWNLOADING")
         self.handshake()
         # index = local_file_name.rfind("/")
@@ -234,10 +234,7 @@ class RawSocket:
         # else:
         #     local_file_name = local_file_name[index + 1:]
         # # print("WRITING DATA TO::::", local_file_name)
-        local_file_name = file_name
-        temp_file = open(local_file_name, 'w+')
-        temp_file.close()
-
+        
         self.send_packet(self.seq, self.ack, 'PSH-ACK', get_request_data)
         print('get sent', self.seq, self.ack, 'PSH-ACK', len(get_request_data))
 
