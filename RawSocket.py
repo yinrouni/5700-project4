@@ -449,9 +449,10 @@ class RawSocket:
                     headers, body = parse_header_body(tcp_response)
                     headers, body = parse_header_body(tcp_response)
                     if not headers.startswith(b'HTTP/1.1 200 OK'):
-                        self.reply_disconnect()
-                        os.system('rm -rf %s' % (file_name))
-                        sys.exit(1)
+                        print('not 200 !!!!')
+                        # self.reply_disconnect()
+                        # os.system('rm -rf %s' % (file_name))
+                        # sys.exit(1)
                     if len(body) > 0:
                         local_file.write(body)
                         tcp_header_and_body_flag = 1
