@@ -98,3 +98,6 @@ disconnect
         <---- FIN-ACK seq = w, ack = m + 1 ----
         ---- ACK seq = m + 1 , ack = w + 1 ---->
 
+Challenges faced
+    process of handle sequence and acknowledgement numbers
+    wireshark captures TCP DUP ACK, we figure out what happend, and solved it.
