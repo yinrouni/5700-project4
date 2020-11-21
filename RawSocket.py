@@ -198,8 +198,7 @@ class RawSocket:
     def unpackTCP(self,tcp_packet):
         """
         Unpacks incoming TCP packet and  performs validations. Its destination port should be the port if the local
-        machine,
-        and validate the checksum.
+        machine and validate the checksum.
         :param tcp_packet: the tcp packted to be unpacked
         :return: tcp headers and user data in it
         """
@@ -525,7 +524,7 @@ class RawSocket:
                     ip_packet = self.recv_sock.recv(65536)
                     ip_headers, ip_data = self.unpackIP(ip_packet)
                     tcp_headers, tcp_data = self.unpackTCP(ip_data)
-                    if tcp_headers['flags'] == 1: #FIN
+                    if tcp_headers['flags'] % 2 == 1: #FIN
                         break
                 except:
                     continue
