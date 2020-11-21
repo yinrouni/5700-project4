@@ -62,7 +62,6 @@ def calculate_checksum(msg):
     for i in range(0, len(msg), 2):
         if i == len(msg)-1:
             w = msg[i]
-            print('cks')
         else :
             w = msg[i] + (msg[i + 1] << 8)
         s = s + w
@@ -238,7 +237,7 @@ class RawSocket:
         actual_c_sum = calculate_checksum(header1_data)
 
         if c_sum != actual_c_sum:
-            print("Invalid packet")
+            # print("Invalid packet")
             raise ValueError
         return tcp_headers, tcp_data
 
@@ -251,7 +250,6 @@ class RawSocket:
         """
         ip_header_values = unpack('!BBHHHBBH4s4s', ip_packet[:20])
         tcp_packet = ip_packet[20:]
-        # print(ip_header_values)
 
         ip_header_keys = ['ver_ihl', 'service_type', 'total_length', 'pkt_id', 'frag_off', 'ttl', 'proto', 'checksum',
                           'src', 'dest']
@@ -281,7 +279,7 @@ class RawSocket:
 
         # Send a SYN
         self.send_packet(self.seq, 0, 'SYN', '')
-        print('handshake sent', self.seq, 0, 'SYN', 0)
+        # print('handshake sent', self.seq, 0, 'SYN', 0)
 
         # receive a SYN-ACK. if the incoming packet fails the verification and it's invalid, discard it and try to
         # receive another.
@@ -298,8 +296,8 @@ class RawSocket:
                 ip_packet = self.recv_sock.recv(65536)
                 continue
             response_ack = tcp_headers['ack']
-            print('handshake recv', tcp_headers['seq'], tcp_headers['ack'],
-                    'SYN-ACK', 0)
+            # print('handshake recv', tcp_headers['seq'], tcp_headers['ack'],
+                    # 'SYN-ACK', 0)
 
             # verify the ack of incoming SYN-ACK with the SYN sent. If succeed, send a ACK for it, and handshake
             # done. otherwise, handshake fails.
@@ -308,7 +306,7 @@ class RawSocket:
                 response_seq = tcp_headers['seq']
                 self.ack = response_seq + 1
                 self.send_packet(self.seq, self.ack, 'ACK', '')
-                print('handshake sent', self.seq, self.ack, 'ACK', 0)
+                # print('handshake sent', self.seq, self.ack, 'ACK', 0)
                 print("handshake done")
                 break
             else:
@@ -338,11 +336,11 @@ class RawSocket:
                 continue
 
         self.send_packet(self.seq, self.ack, 'PSH-ACK', get_request_data)
-        print('get sent', self.seq, self.ack, 'PSH-ACK', len(get_request_data))
+        # print('get sent', self.seq, self.ack, 'PSH-ACK', len(get_request_data))
 
         while self.rev_ack():
             self.send_packet(self.seq, self.ack, 'PSH-ACK', get_request_data)
-            print('get sent', self.seq, self.ack, 'PSH-ACK', len(get_request_data))
+            # print('get sent', self.seq, self.ack, 'PSH-ACK', len(get_request_data))
 
         self.seq_offset += len(get_request_data)
 
@@ -382,7 +380,7 @@ class RawSocket:
             self.cwnd = min(self.cwnd, 999) + 1
             self.ack_offset += len(tcp_response)
 
-            print('dis recv', tcp_headers['seq'], tcp_headers['ack'], 'ACK', len(tcp_response))
+            # print('dis recv', tcp_headers['seq'], tcp_headers['ack'], 'ACK', len(tcp_response))
             return True
 
         # ACK for PSH-ACK
@@ -392,7 +390,7 @@ class RawSocket:
             self.cwnd = min(self.cwnd, 999) + 1
             self.ack_offset += len(tcp_response)
 
-            print('get recv', tcp_headers['seq'], tcp_headers['ack'], 'ACK', len(tcp_response))
+            # print('get recv', tcp_headers['seq'], tcp_headers['ack'], 'ACK', len(tcp_response))
             return True
         return False
 
@@ -453,7 +451,7 @@ class RawSocket:
                     headers, body = parse_header_body(tcp_response)
                     headers, body = parse_header_body(tcp_response)
                     if not headers.startswith(b'HTTP/1.1 200 OK'):
-                        print('not 200 !!!!')
+                        print('Page Status Error')
                         ok = 0
                         # self.reply_disconnect()
                         # os.system('rm -rf %s' % (file_name))
@@ -463,7 +461,7 @@ class RawSocket:
                         tcp_header_and_body_flag = 1
                 else:
                     local_file.write(tcp_response)
-                print('get recv', rec_seq, rec_ack, tcp_headers['flags'], len(tcp_response))
+                # print('get recv', rec_seq, rec_ack, tcp_headers['flags'], len(tcp_response))
 
             else:
                 # packet lost, cwnd reset
@@ -476,7 +474,7 @@ class RawSocket:
             else:
                 # send ACK for the received packets
                 self.send_packet(self.seq + self.seq_offset, self.ack + self.ack_offset, 'ACK', '')
-                print('get sent', self.seq + self.seq_offset, self.ack + self.ack_offset, 'ACK', '')
+                # print('get sent', self.seq + self.seq_offset, self.ack + self.ack_offset, 'ACK', '')
 
        # self.disconnect()
         local_file.close()
@@ -497,7 +495,7 @@ class RawSocket:
         :return:null
         """
         self.send_packet(self.seq + self.seq_offset, self.ack + self.ack_offset + 1, 'FIN-ACK', '')
-        print('dis sent', self.seq + self.seq_offset, self.ack + self.ack_offset + 1, 'FIN-ACK', 0)
+        # print('dis sent', self.seq + self.seq_offset, self.ack + self.ack_offset + 1, 'FIN-ACK', 0)
         ret = self.rev_ack(fin = 1)
         self.close()
 
@@ -513,11 +511,11 @@ class RawSocket:
         :return: null
         """
         self.send_packet(self.seq + self.seq_offset, self.ack + self.ack_offset, 'FIN', '')
-        print('dis sent', self.seq + self.seq_offset, self.ack + self.ack_offset, 'FIN', 0)
+        # print('dis sent', self.seq + self.seq_offset, self.ack + self.ack_offset, 'FIN', 0)
 
         while self.rev_ack(fin=1):
             self.send_packet(self.seq + self.seq_offset, self.ack + self.ack_offset, 'FIN', '')
-            print('dis sent', self.seq + self.seq_offset, self.ack + self.ack_offset, 'FIN', 0)
+            # print('dis sent', self.seq + self.seq_offset, self.ack + self.ack_offset, 'FIN', 0)
         while True:
             start_time = time.process_time()
             now = time.process_time()
@@ -537,10 +535,10 @@ class RawSocket:
                 self.disconnect()
             response_ack = tcp_headers['ack']
             if self.seq + self.seq_offset + 1 == response_ack:
-                print('dis recv', tcp_headers['seq'],tcp_headers['ack'], tcp_headers['flags'], 0)
+                # print('dis recv', tcp_headers['seq'],tcp_headers['ack'], tcp_headers['flags'], 0)
                 response_ack = tcp_headers['seq']
                 self.send_packet(self.seq + self.seq_offset + 1, response_ack + 1, 'ACK', '')
-                print('dis sent', self.seq + self.seq_offset + 1, response_ack + 1, 'ACK', '')
+                # print('dis sent', self.seq + self.seq_offset + 1, response_ack + 1, 'ACK', '')
             self.close()
             return
 
