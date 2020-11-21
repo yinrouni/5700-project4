@@ -130,3 +130,5 @@ not receive any data for 3 min, tear down the connection.
 Challenges faced
     process of handle sequence and acknowledgement numbers
     wireshark captures TCP DUP ACK, we figure out what happend, and solved it.
+
+Chihao Sun implements the processing of url and file name，status code handler and Makefile, and rawhttpget script.
