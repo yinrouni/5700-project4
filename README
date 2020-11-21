@@ -130,10 +130,8 @@ recv():      we implement this function to Receive the response of the request. 
              
 disconnect() and reply_disconnect(): handle the connection teardown
 
-
-process of handle sequence and acknowledgement numbers
-
-
 Challenges faced
     process of handle sequence and acknowledgement numbers
     wireshark captures TCP DUP ACK, we figure out what happend, and solved it.
+    
+Chihao Sun implements the processing of url and file name，status code handler and Makefile, and rawhttpget script. 
