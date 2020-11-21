@@ -451,7 +451,6 @@ class RawSocket:
                     headers, body = parse_header_body(tcp_response)
                     headers, body = parse_header_body(tcp_response)
                     if not headers.startswith(b'HTTP/1.1 200 OK'):
-                        print('Page Status Error')
                         ok = 0
                         # self.reply_disconnect()
                         # os.system('rm -rf %s' % (file_name))
@@ -480,8 +479,9 @@ class RawSocket:
         local_file.close()
         if not ok:
             os.system('rm -rf %s' % (file_name))
-            print('rm output')
-        print("DOWNLOAD DONE TO :" + local_file_name)
+            print('Page Status Error')
+        else:
+            print("DOWNLOAD DONE TO :" + local_file_name)
 
     def reply_disconnect(self):
         """
