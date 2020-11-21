@@ -28,8 +28,8 @@ def getHostAndPath(url):
     temp = str(url)
     parsed = urlparse(url)
     host = parsed.netloc
-    path = parsed.path
-    return host,path
+    path = '/' if parsed.path == '' else parsed.path
+    return host, path
 
 def getFileName(path):
     if not path or path == '/':
