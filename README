@@ -132,3 +132,5 @@ Challenges faced
     wireshark captures TCP DUP ACK, we figure out what happend, and solved it.
 
 Chihao Sun implements the processing of url and file name，status code handler and Makefile, and rawhttpget script.
+Rouni Yin implements packing and unpacking process, connect, send, recv and disconnect functionality.
+Both of us contribute to recv and disconnect process of the socket.
