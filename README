@@ -2,6 +2,26 @@ Launch program requires root privileges on the operating system
     make
     ./rawhttpget <URL>
 
+Approach
+    At first, our program will accoridng URL get the hostname, and set up
+    IP and port of the remote server by hostname.Then, we generate the request
+    and do handshake--Start with sending a SYN to server. Unpack and validate the 
+    incoming SYN-ACK packet. Send a ACK for it.After handshake done,send request.
+    
+    then, receive the response of request, and Keep receiving ACK with content from server, 
+    and send back ACK for each of them. unpackets the IP and TCP header, check the vaildation
+    and get data. write data to the file.
+    
+    In the end, if our program receive a FIN from server, it will reply to this request 
+    to tear down the connection, by sending a FIN-ACK. Then receive an ACK from server and 
+    tear down the connection. if our program finished write the data and wants to end the 
+    connection, the process are as follow:
+     client ------------------------- server
+        -------- FIN seq = m, ack = n -------->
+        <----- ACK seq = k , ack = m + 1 ------
+        <---- FIN-ACK seq = w, ack = m + 1 ----
+        ---- ACK seq = m + 1 , ack = w + 1 ---->
+    
 
 IP header
 0                   1                   2                   3
