@@ -62,6 +62,7 @@ def calculate_checksum(msg):
     for i in range(0, len(msg), 2):
         if i == len(msg)-1:
             w = msg[i]
+            print('cks')
         else :
             w = msg[i] + (msg[i + 1] << 8)
         s = s + w
@@ -467,7 +468,7 @@ class RawSocket:
             else:
                 # packet lost, cwnd reset
                 self.cwnd = 1
-
+                continue
             if tcp_headers['flags'] % 2 == 1:
                 # FIN from server, reply to the request from server to end the connection.
                 self.reply_disconnect()
